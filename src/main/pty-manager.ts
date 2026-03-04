@@ -17,6 +17,31 @@ export interface PtyCallbacks {
   onExit: (id: string, exitCode: number | undefined) => void;
 }
 
+// Electron injects env vars that break Node.js child processes (npm, npx, etc.)
+const ELECTRON_ENV_BLOCKLIST = new Set([
+  'ELECTRON_RUN_AS_NODE',
+  'ELECTRON_NO_ASAR',
+  'ELECTRON_NO_ATTACH_CONSOLE',
+  'ELECTRON_ENABLE_LOGGING',
+  'ELECTRON_ENABLE_STACK_DUMPING',
+  'ELECTRON_DEFAULT_ERROR_MODE',
+  'ELECTRON_OVERRIDE_DIST_PATH',
+  'GOOGLE_API_KEY',
+  'GOOGLE_DEFAULT_CLIENT_ID',
+  'GOOGLE_DEFAULT_CLIENT_SECRET',
+  'ORIGINAL_XDG_CURRENT_DESKTOP',
+  'NODE_OPTIONS',
+]);
+
+function sanitizeEnv(env: Record<string, string>): Record<string, string> {
+  const clean: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (ELECTRON_ENV_BLOCKLIST.has(key)) continue;
+    clean[key] = value;
+  }
+  return clean;
+}
+
 export class PtyManager {
   private ptys = new Map<string, IPty>();
   private callbacks: PtyCallbacks;
@@ -36,7 +61,7 @@ export class PtyManager {
       cwd = homedir();
     }
 
-    const baseEnv = opts.env ?? (process.env as Record<string, string>);
+    const baseEnv = sanitizeEnv(opts.env ?? (process.env as Record<string, string>));
     const ptyProcess = spawn(opts.shellPath, opts.args, {
       name: 'xterm-256color',
       cols: opts.cols,
