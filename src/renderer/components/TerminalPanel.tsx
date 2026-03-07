@@ -86,11 +86,17 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
         requestAnimationFrame(() => searchInputRef.current?.focus());
         return false;
       }
-      // Ctrl+V or Ctrl+Shift+V: paste
-      if (event.ctrlKey && (event.key === 'v' || event.key === 'V')) {
+      // Ctrl+V / Cmd+V or Ctrl+Shift+V: paste
+      if ((event.ctrlKey || event.metaKey) && (event.key === 'v' || event.key === 'V')) {
         event.preventDefault(); // Stop browser native paste (would cause double paste)
-        const text = window.terminalAPI.clipboardRead();
-        if (text) window.terminalAPI.writePty(terminalId, text);
+        if (window.terminalAPI.clipboardHasImage()) {
+          window.terminalAPI.clipboardSaveImage().then((filePath) => {
+            window.terminalAPI.writePty(terminalId, filePath);
+          });
+        } else {
+          const text = window.terminalAPI.clipboardRead();
+          if (text) window.terminalAPI.writePty(terminalId, text);
+        }
         return false;
       }
       // Ctrl+C with selection: copy instead of SIGINT
@@ -271,8 +277,14 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
         window.terminalAPI.clipboardWrite(term.getSelection());
         term.clearSelection();
       } else {
-        const text = window.terminalAPI.clipboardRead();
-        if (text) window.terminalAPI.writePty(terminalId, text);
+        if (window.terminalAPI.clipboardHasImage()) {
+          window.terminalAPI.clipboardSaveImage().then((filePath) => {
+            window.terminalAPI.writePty(terminalId, filePath);
+          });
+        } else {
+          const text = window.terminalAPI.clipboardRead();
+          if (text) window.terminalAPI.writePty(terminalId, text);
+        }
       }
     };
     // Use capture phase to intercept before any other handler

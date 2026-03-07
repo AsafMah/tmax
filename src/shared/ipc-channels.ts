@@ -37,6 +37,7 @@ export const IPC = {
   VERSION_GET_UPDATE: 'version:getUpdate',
   VERSION_CHECK_NOW: 'version:checkNow',
   VERSION_GET_APP_VERSION: 'version:getAppVersion',
+  CLIPBOARD_SAVE_IMAGE: 'clipboard:saveImage',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

@@ -1,4 +1,6 @@
 import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import Store from 'electron-store';
 import { PtyManager } from './pty-manager';
@@ -326,6 +328,15 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC.VERSION_CHECK_NOW, () => {
     return versionChecker?.checkNow() ?? null;
+  });
+
+  ipcMain.handle(IPC.CLIPBOARD_SAVE_IMAGE, (_event, base64Png: string) => {
+    const dir = path.join(os.tmpdir(), 'tmax-clipboard');
+    fs.mkdirSync(dir, { recursive: true });
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filePath = path.join(dir, `clipboard-${timestamp}.png`);
+    fs.writeFileSync(filePath, Buffer.from(base64Png, 'base64'));
+    return filePath;
   });
 }
 

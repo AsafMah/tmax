@@ -20,6 +20,8 @@ export interface TerminalAPI {
   setConfig(key: string, value: unknown): Promise<void>;
   clipboardRead(): string;
   clipboardWrite(text: string): void;
+  clipboardHasImage(): boolean;
+  clipboardSaveImage(): Promise<string>;
   getAppVersion(): Promise<string>;
   getVersionUpdate(): Promise<{ current: string; latest: string; url: string } | null>;
   checkForUpdates(): Promise<{ current: string; latest: string; url: string } | null>;
@@ -77,6 +79,16 @@ const terminalAPI: TerminalAPI = {
 
   clipboardWrite(text: string) {
     clipboard.writeText(text);
+  },
+
+  clipboardHasImage() {
+    return !clipboard.readImage().isEmpty();
+  },
+
+  clipboardSaveImage() {
+    const png = clipboard.readImage().toPNG();
+    const base64 = png.toString('base64');
+    return ipcRenderer.invoke(IPC.CLIPBOARD_SAVE_IMAGE, base64);
   },
 
   openConfigFile() {

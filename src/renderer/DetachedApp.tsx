@@ -52,13 +52,19 @@ const DetachedApp: React.FC<DetachedAppProps> = ({ terminalId }) => {
       // Clipboard paste/copy handling
       term.attachCustomKeyEventHandler((event) => {
         if (event.type !== 'keydown') return true;
-        if (event.ctrlKey && (event.key === 'v' || event.key === 'V')) {
-          navigator.clipboard
-            .readText()
-            .then((text) => {
-              if (text) window.terminalAPI.writePty(terminalId, text);
-            })
-            .catch(() => {});
+        if ((event.ctrlKey || event.metaKey) && (event.key === 'v' || event.key === 'V')) {
+          if (window.terminalAPI.clipboardHasImage()) {
+            window.terminalAPI.clipboardSaveImage().then((filePath) => {
+              window.terminalAPI.writePty(terminalId, filePath);
+            });
+          } else {
+            navigator.clipboard
+              .readText()
+              .then((text) => {
+                if (text) window.terminalAPI.writePty(terminalId, text);
+              })
+              .catch(() => {});
+          }
           return false;
         }
         if (event.ctrlKey && !event.shiftKey && event.key === 'c' && term.hasSelection()) {
