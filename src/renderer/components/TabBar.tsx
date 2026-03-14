@@ -79,7 +79,7 @@ const Tab: React.FC<TabProps> = ({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    ...(tabColor ? { background: `${tabColor}55`, borderBottom: `2px solid ${tabColor}` } : {}),
+    ...(tabColor ? { background: `${tabColor}88`, borderBottom: `3px solid ${tabColor}`, color: '#fff' } : {}),
   };
 
   const handleMouseDown = useCallback(

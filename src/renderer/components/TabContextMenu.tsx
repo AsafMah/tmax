@@ -179,6 +179,14 @@ const TabContextMenu: React.FC<TabContextMenuProps> = ({ position, onClose }) =>
           }}>
             {store().viewMode === 'focus' ? 'Split Mode' : 'Focus Mode'} <span className="shortcut">Ctrl+Shift+F</span>
           </button>
+          {targetIds.length >= 2 && (
+            <button className="context-menu-item" onClick={() => {
+              store().gridSelectedTabs(targetIds);
+              onClose();
+            }}>
+              View Selected in Grid ({targetIds.length} tabs)
+            </button>
+          )}
           <button className="context-menu-item" onClick={() => {
             const t = store().terminals.get(position.terminalId);
             if (t?.mode === 'detached') {
@@ -296,11 +304,28 @@ const TabContextMenu: React.FC<TabContextMenuProps> = ({ position, onClose }) =>
             for (const [id] of store().terminals) {
               window.terminalAPI.resizePty(id, 80, 24).catch(() => {});
             }
+            // Send terminal reset sequence to the focused terminal to unstick input
+            window.terminalAPI.writePty(position.terminalId, '\x1b[?1h\x1b[?1l');
             store().setFocus(position.terminalId);
             onClose();
           }}>
             Unfreeze Terminal
           </button>
+          {terminal?.aiSessionId && terminal?.startupCommand && (
+            <button className="context-menu-item" onClick={() => {
+              const tid = position.terminalId;
+              const cmd = terminal.startupCommand;
+              // Send Ctrl+C twice to kill the stuck process, then re-launch
+              window.terminalAPI.writePty(tid, '\x03\x03');
+              setTimeout(() => {
+                window.terminalAPI.writePty(tid, cmd + '\r');
+              }, 500);
+              store().setFocus(tid);
+              onClose();
+            }}>
+              Restart Session
+            </button>
+          )}
           <button className="context-menu-item" onClick={() => {
             onClose();
             store().toggleCommandPalette();

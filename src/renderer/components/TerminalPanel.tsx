@@ -23,6 +23,8 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
   const config = useTerminalStore((s) => s.config);
   const focusedTerminalId = useTerminalStore((s) => s.focusedTerminalId);
   const fontSize = useTerminalStore((s) => s.fontSize);
+  const aiResumeCommandRef = useRef<string>('');
+  const aiSessionStartedRef = useRef(false);
   const isFocused = focusedTerminalId === terminalId;
 
   const handleFocus = useCallback(() => {
@@ -153,8 +155,10 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
         if (id === terminalId) {
           term.write(data);
           // Parse cwd from PowerShell prompt "PS C:\path>" or cmd prompt "C:\path>"
-          const psMatch = data.match(/PS ([A-Z]:\\[^>]*?)>/i);
-          const cmdMatch = data.match(/^([A-Z]:\\[^>]*?)>/im);
+          // Strip ANSI escape sequences first to avoid capturing colored output as paths
+          const clean = data.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '');
+          const psMatch = clean.match(/PS ([A-Z]:\\[^>]*?)>/i);
+          const cmdMatch = clean.match(/^([A-Z]:\\[^>]*?)>/im);
           const dir = psMatch?.[1] || cmdMatch?.[1];
           if (dir) {
             const store = useTerminalStore.getState();
@@ -164,6 +168,14 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
               newTerminals.set(terminalId, { ...terminal, cwd: dir });
               useTerminalStore.setState({ terminals: newTerminals });
               store.addRecentDir(dir);
+            }
+            // Shell prompt appeared after AI session exited — pre-fill resume command
+            if (aiSessionStartedRef.current && aiResumeCommandRef.current) {
+              aiSessionStartedRef.current = false;
+              const resumeCmd = aiResumeCommandRef.current;
+              setTimeout(() => {
+                window.terminalAPI.writePty(terminalId, resumeCmd);
+              }, 200);
             }
           }
         }
@@ -184,17 +196,24 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
 
     // Send startup command if set (for layout restore)
     const termInstance = useTerminalStore.getState().terminals.get(terminalId);
-    if (termInstance?.startupCommand) {
+    if (termInstance?.startupCommand && !termInstance.startupCommandSent) {
       const cmd = termInstance.startupCommand;
+      // Save resume command for AI sessions so we can pre-fill it on exit
+      if (termInstance.aiSessionId) {
+        aiResumeCommandRef.current = cmd;
+      }
       setTimeout(() => {
         window.terminalAPI.writePty(terminalId, cmd + '\r');
+        if (termInstance.aiSessionId) {
+          aiSessionStartedRef.current = true;
+        }
       }, 1500);
-      // Clear after firing so it doesn't re-run on session restore
+      // Mark as sent so it doesn't re-run on hot reload, but keep the value for session save
       const store = useTerminalStore.getState();
       const newTerminals = new Map(store.terminals);
       const t = newTerminals.get(terminalId);
       if (t) {
-        newTerminals.set(terminalId, { ...t, startupCommand: '' });
+        newTerminals.set(terminalId, { ...t, startupCommandSent: true });
         useTerminalStore.setState({ terminals: newTerminals });
       }
     }
@@ -211,13 +230,13 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
         processName = (processName.split(sep).pop() || processName).replace(/\.(exe|cmd|bat|com)$/i, '');
         const updates: Partial<typeof terminal> = { lastProcess: processName };
         // If the title looks like a directory path, update cwd and track in recents
-        // Only accept paths that don't end with a file extension (i.e. actual folders)
-        const trimmed = rawTitle.trim();
+        // Strip ANSI escape sequences and only accept clean paths
+        const trimmed = rawTitle.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').trim();
         const looksLikePath = /^[A-Z]:\\/i.test(trimmed) || trimmed.startsWith('/');
         const hasFileExtension = /\.\w{1,5}$/i.test(trimmed);
         if (looksLikePath && !hasFileExtension) {
-          updates.cwd = rawTitle.trim();
-          store.addRecentDir(rawTitle.trim());
+          updates.cwd = trimmed;
+          store.addRecentDir(trimmed);
         }
         const newTerminals = new Map(store.terminals);
         newTerminals.set(terminalId, { ...terminal, ...updates });

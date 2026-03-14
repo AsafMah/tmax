@@ -59,11 +59,7 @@ function getSubtitle(s: CopilotSessionSummary): string | null {
 
 function sortSessions(sessions: CopilotSessionSummary[]): CopilotSessionSummary[] {
   return [...sessions].sort((a, b) => {
-    // Active (non-idle) sessions first
-    const aActive = a.status !== 'idle' ? 1 : 0;
-    const bActive = b.status !== 'idle' ? 1 : 0;
-    if (aActive !== bActive) return bActive - aActive;
-    // Then by last activity (most recent first)
+    // Sort by last activity time, newest first
     return (b.lastActivityTime || 0) - (a.lastActivityTime || 0);
   });
 }

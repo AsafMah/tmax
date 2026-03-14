@@ -16,14 +16,16 @@ import type { CopilotSessionSummary } from '../../shared/copilot-types';
 // ── Tab color palette ────────────────────────────────────────────────
 
 export const TAB_COLORS = [
-  { name: 'Red', value: '#ff4444' },
-  { name: 'Green', value: '#44ff44' },
-  { name: 'Blue', value: '#4488ff' },
-  { name: 'Orange', value: '#ff8800' },
+  // First 4 = Microsoft logo colors
+  { name: 'Red', value: '#F25022' },
+  { name: 'Green', value: '#7FBA00' },
+  { name: 'Blue', value: '#00A4EF' },
+  { name: 'Yellow', value: '#FFB900' },
+  // Extended palette
   { name: 'Purple', value: '#aa44ff' },
   { name: 'Cyan', value: '#00dddd' },
   { name: 'Pink', value: '#ff44aa' },
-  { name: 'Yellow', value: '#ffdd00' },
+  { name: 'Orange', value: '#ff8800' },
   { name: 'Gray', value: '#888888' },
   { name: 'Black', value: '#333333' },
 ];
@@ -377,6 +379,7 @@ interface TerminalStore {
   toggleViewMode: () => void;
   toggleSelectTerminal: (id: TerminalId) => void;
   clearSelection: () => void;
+  gridSelectedTabs: (ids: TerminalId[]) => void;
   equalizeLayout: () => void;
   cycleGridColumns: () => void;
   moveTerminalDirection: (id: TerminalId, dir: 'up' | 'down' | 'left' | 'right') => void;
@@ -412,6 +415,7 @@ interface TerminalStore {
   addClaudeCodeSession: (session: CopilotSessionSummary) => void;
   updateClaudeCodeSession: (session: CopilotSessionSummary) => void;
   removeClaudeCodeSession: (sessionId: string) => void;
+  resumeAllSessions: () => void;
 }
 
 // Cached session extras (layouts, etc.) so saveSession doesn't need async load
@@ -699,10 +703,19 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
   },
 
   swapTerminals: (idA: TerminalId, idB: TerminalId) => {
-    const { layout } = get();
+    const { layout, terminals } = get();
     if (!layout.tilingRoot) return;
     const newRoot = swapLeaves(layout.tilingRoot, idA, idB);
-    set({ layout: { ...layout, tilingRoot: newRoot } });
+    // Also swap tab order to keep tab bar in sync with grid positions
+    const entries = Array.from(terminals.entries());
+    const idxA = entries.findIndex(([id]) => id === idA);
+    const idxB = entries.findIndex(([id]) => id === idB);
+    if (idxA !== -1 && idxB !== -1) {
+      [entries[idxA], entries[idxB]] = [entries[idxB], entries[idxA]];
+      set({ layout: { ...layout, tilingRoot: newRoot }, terminals: new Map(entries) });
+    } else {
+      set({ layout: { ...layout, tilingRoot: newRoot } });
+    }
   },
 
   reorderTerminals: (draggedId: TerminalId, overId: TerminalId) => {
@@ -1058,9 +1071,13 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
       }
       set({ terminals: newTerminals, autoColorTabs: false });
     } else {
+      // First 4 tabs get Microsoft logo colors (in order), rest are shuffled
+      const msColors = TAB_COLORS.slice(0, 4);
+      const rest = [...TAB_COLORS.slice(4)].sort(() => Math.random() - 0.5);
       let i = 0;
       for (const [id, instance] of newTerminals) {
-        newTerminals.set(id, { ...instance, tabColor: TAB_COLORS[i % TAB_COLORS.length].value });
+        const color = i < 4 ? msColors[i].value : rest[(i - 4) % rest.length].value;
+        newTerminals.set(id, { ...instance, tabColor: color });
         i++;
       }
       set({ terminals: newTerminals, autoColorTabs: true });
@@ -1151,6 +1168,22 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
     set({ selectedTerminalIds: {} });
   },
 
+  gridSelectedTabs: (ids: TerminalId[]) => {
+    if (ids.length < 2) return;
+    const { layout, preGridRoot } = get();
+    const gridRoot = buildGridTree(ids);
+    if (!gridRoot) return;
+    // Save the original layout so we can restore when exiting grid
+    const originalRoot = preGridRoot || layout.tilingRoot;
+    set({
+      viewMode: 'grid',
+      preGridRoot: originalRoot,
+      layout: { ...layout, tilingRoot: gridRoot },
+      selectedTerminalIds: {},
+      focusedTerminalId: ids[0],
+    });
+  },
+
   equalizeLayout: () => {
     const { layout } = get();
     if (!layout.tilingRoot || layout.tilingRoot.kind === 'leaf') return;
@@ -1209,12 +1242,21 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
   },
 
   moveTerminalDirection: (id: TerminalId, dir: 'up' | 'down' | 'left' | 'right') => {
-    const { layout } = get();
+    const { layout, terminals } = get();
     if (!layout.tilingRoot) return;
     const neighbor = findDirectionalNeighbor(layout.tilingRoot, id, dir);
     if (neighbor) {
       const newRoot = swapLeaves(layout.tilingRoot, id, neighbor);
-      set({ layout: { ...layout, tilingRoot: newRoot } });
+      // Also swap tab order to keep tab bar in sync with grid positions
+      const entries = Array.from(terminals.entries());
+      const idxA = entries.findIndex(([tid]) => tid === id);
+      const idxB = entries.findIndex(([tid]) => tid === neighbor);
+      if (idxA !== -1 && idxB !== -1) {
+        [entries[idxA], entries[idxB]] = [entries[idxB], entries[idxA]];
+        set({ layout: { ...layout, tilingRoot: newRoot }, terminals: new Map(entries) });
+      } else {
+        set({ layout: { ...layout, tilingRoot: newRoot } });
+      }
     }
   },
 
@@ -1392,8 +1434,12 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
   },
 
   addRecentDir: (dir: string) => {
-    // Only add actual directories, not executable paths
+    // Only add actual directories, not executable paths or garbled terminal output
     if (/\.(exe|cmd|bat|com|ps1|sh|msi|dll)$/i.test(dir)) return;
+    // Reject paths containing ANSI escapes, control chars, or shell operators
+    if (/[\x1b\x00-\x1f]|&&|\|\||[><|'"]/.test(dir)) return;
+    // Must look like a real path (drive letter or unix root)
+    if (!/^[A-Z]:\\/i.test(dir) && !dir.startsWith('/')) return;
     const { recentDirs } = get();
     const filtered = recentDirs.filter((d) => d !== dir);
     const updated = [dir, ...filtered].slice(0, 10);
@@ -1441,12 +1487,24 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
   },
 
   saveSession: async () => {
-    const { terminals, layout, favoriteDirs, recentDirs } = get();
+    const { terminals, layout, favoriteDirs, recentDirs, config, copilotSessions, claudeCodeSessions } = get();
+
+    // Reconstruct startupCommand from aiSessionId if it was cleared
+    function getStartupCommand(t: TerminalInstance | undefined): string {
+      if (t?.startupCommand) return t.startupCommand;
+      if (!t?.aiSessionId) return '';
+      // Check if it's a copilot or claude session
+      const isCopilot = copilotSessions.some((s) => s.id === t.aiSessionId);
+      if (isCopilot) return `${config?.copilotCommand || 'agency copilot'} --resume ${t.aiSessionId}`;
+      const isClaude = claudeCodeSessions.some((s) => s.id === t.aiSessionId);
+      if (isClaude) return `${config?.claudeCodeCommand || 'claude'} --resume ${t.aiSessionId}`;
+      return '';
+    }
 
     function serializeNode(node: LayoutNode): unknown {
       if (node.kind === 'leaf') {
         const t = terminals.get(node.terminalId);
-        return { kind: 'leaf', terminal: { title: t?.title ?? 'Terminal', shellProfileId: t?.shellProfileId ?? '', cwd: t?.cwd ?? 'C:\\Users' } };
+        return { kind: 'leaf', terminal: { title: t?.title ?? 'Terminal', shellProfileId: t?.shellProfileId ?? '', cwd: t?.cwd ?? 'C:\\Users', startupCommand: getStartupCommand(t), aiSessionId: t?.aiSessionId, aiAutoTitle: t?.aiAutoTitle, tabColor: t?.tabColor, customTitle: t?.customTitle } };
       }
       return { kind: 'split', direction: node.direction, splitRatio: node.splitRatio, first: serializeNode(node.first), second: serializeNode(node.second) };
     }
@@ -1460,7 +1518,7 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
       tree: layout.tilingRoot ? serializeNode(layout.tilingRoot) : null,
       floating: layout.floatingPanels.map((p) => {
         const t = terminals.get(p.terminalId);
-        return { terminal: { title: t?.title ?? 'Terminal', shellProfileId: t?.shellProfileId ?? '', cwd: t?.cwd ?? 'C:\\Users' }, x: p.x, y: p.y, width: p.width, height: p.height };
+        return { terminal: { title: t?.title ?? 'Terminal', shellProfileId: t?.shellProfileId ?? '', cwd: t?.cwd ?? 'C:\\Users', startupCommand: getStartupCommand(t), aiSessionId: t?.aiSessionId, aiAutoTitle: t?.aiAutoTitle, tabColor: t?.tabColor, customTitle: t?.customTitle }, x: p.x, y: p.y, width: p.width, height: p.height };
       }),
     };
     _sessionExtras = data;
@@ -1482,7 +1540,7 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
 
     // New tree format
     if (session.tree || session.floating) {
-      async function createTerm(info: { title: string; shellProfileId: string; cwd: string }): Promise<{ id: TerminalId; instance: TerminalInstance } | null> {
+      async function createTerm(info: { title: string; shellProfileId: string; cwd: string; startupCommand?: string; aiSessionId?: string; aiAutoTitle?: boolean; tabColor?: string; customTitle?: boolean }): Promise<{ id: TerminalId; instance: TerminalInstance } | null> {
         const profile = config!.shells.find((s) => s.id === info.shellProfileId) ?? config!.shells[0];
         if (!profile) return null;
         const id = uuidv4();
@@ -1495,7 +1553,7 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
           const { pid } = await window.terminalAPI.createPty({
             id, shellPath: profile.path, args: profile.args, cwd, env: profile.env, cols: 80, rows: 24,
           });
-          return { id, instance: { id, title: info.title || profile.name, customTitle: !!info.title, shellProfileId: profile.id, cwd, mode: 'tiled' as const, pid, lastProcess: '', startupCommand: info.startupCommand || '' } };
+          return { id, instance: { id, title: info.title || profile.name, customTitle: info.customTitle ?? !!info.title, shellProfileId: profile.id, cwd, mode: 'tiled' as const, pid, lastProcess: '', startupCommand: info.startupCommand || '', aiSessionId: info.aiSessionId, aiAutoTitle: info.aiAutoTitle, tabColor: info.tabColor } };
         } catch { return null; }
       }
 
@@ -1636,7 +1694,7 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
       || (session.workspace?.repository ? session.workspace.repository.split('/').pop() : null)
       || session.workspace?.name
       || sessionId.slice(0, 8);
-    const title = `Copilot: ${displayName}`;
+    const title = displayName;
 
     const instance: TerminalInstance = {
       id,
@@ -1712,9 +1770,8 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
       }
 
       if (matched && current.aiAutoTitle) {
-        const prefix = session.provider === 'claude-code' ? 'Claude' : 'Copilot';
         const summary = session.summary.length > 60 ? session.summary.slice(0, 57) + '...' : session.summary;
-        const title = `${prefix}: ${summary}`;
+        const title = summary;
         if (current.title !== title) {
           newTerminals.set(id, { ...newTerminals.get(id)!, title });
           changed = true;
@@ -1796,7 +1853,7 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
     });
 
     const displayName = session.summary || sessionId.slice(0, 8);
-    const title = `Claude: ${displayName}`;
+    const title = displayName;
 
     const instance: TerminalInstance = {
       id,
@@ -1848,5 +1905,29 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
     set((s) => ({
       claudeCodeSessions: s.claudeCodeSessions.filter((x) => x.id !== sessionId),
     }));
+  },
+
+  resumeAllSessions: () => {
+    const { terminals, config, copilotSessions, claudeCodeSessions } = get();
+    for (const [id, t] of terminals) {
+      // Skip terminals that already have a running process (not just a shell prompt)
+      if (!t.aiSessionId && !t.startupCommand) continue;
+      // Determine the resume command
+      let cmd = t.startupCommand;
+      if (!cmd && t.aiSessionId) {
+        const isCopilot = copilotSessions.some((s) => s.id === t.aiSessionId);
+        if (isCopilot) {
+          cmd = `${config?.copilotCommand || 'agency copilot'} --resume ${t.aiSessionId}`;
+        } else {
+          const isClaude = claudeCodeSessions.some((s) => s.id === t.aiSessionId);
+          if (isClaude) {
+            cmd = `${config?.claudeCodeCommand || 'claude'} --resume ${t.aiSessionId}`;
+          }
+        }
+      }
+      if (cmd) {
+        window.terminalAPI.writePty(id, cmd + '\r');
+      }
+    }
   },
 }));

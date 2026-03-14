@@ -61,6 +61,15 @@ const StatusBar: React.FC = () => {
         )}
       </div>
       <div className="status-section status-right">
+        {Array.from(terminals.values()).some((t) => t.aiSessionId || t.startupCommand) && (
+          <button
+            className="status-mode-btn"
+            onClick={() => useTerminalStore.getState().resumeAllSessions()}
+            title="Resume all AI sessions"
+          >
+            [▶ Resume Sessions]
+          </button>
+        )}
         <button
           className="status-mode-btn"
           onClick={() => useTerminalStore.getState().colorizeAllTabs()}
