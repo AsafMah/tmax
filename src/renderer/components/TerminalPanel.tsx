@@ -1,10 +1,68 @@
-import React, { useEffect, useRef, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useCallback, useState, useReducer } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { SearchAddon } from '@xterm/addon-search';
 import { useTerminalStore } from '../state/terminal-store';
 import '@xterm/xterm/css/xterm.css';
+
+function ago(ts: number): string {
+  if (!ts) return 'never';
+  const s = (Date.now() - ts) / 1000;
+  if (s < 60) return `${s.toFixed(1)}s ago`;
+  return `${Math.floor(s / 60)}m ago`;
+}
+
+interface DiagnosticsOverlayProps {
+  terminalId: string;
+  diagRef: React.RefObject<{ keystrokeCount: number; lastKeystrokeTime: number; outputEventCount: number; lastOutputTime: number; outputBytes: number; focusEventCount: number; lastFocusTime: number }>;
+  mainDiag: { pid: number; writeCount: number; lastWriteTime: number; dataCount: number; lastDataTime: number; dataBytes: number } | null;
+  logPath: string;
+  onClose: () => void;
+}
+
+const DiagnosticsOverlay: React.FC<DiagnosticsOverlayProps> = ({ terminalId, diagRef, mainDiag, logPath, onClose }) => {
+  const d = diagRef.current;
+  const xtermEl = document.activeElement;
+  const xtermFocused = xtermEl?.tagName === 'TEXTAREA' && xtermEl.closest('.xterm-helper-textarea') !== null ||
+    xtermEl?.classList.contains('xterm-helper-textarea');
+  const winFocused = document.hasFocus();
+
+  return (
+    <div className="terminal-diag-overlay" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="terminal-diag-header">
+        <span>Diagnostics · {terminalId.slice(0, 8)}</span>
+        <button className="terminal-diag-close" onClick={onClose}>✕</button>
+      </div>
+      <table className="terminal-diag-table">
+        <tbody>
+          <tr><td>window focused</td><td className={winFocused ? 'diag-ok' : 'diag-warn'}>{winFocused ? 'yes' : 'NO'}</td></tr>
+          <tr><td>xterm focused</td><td className={xtermFocused ? 'diag-ok' : 'diag-warn'}>{xtermFocused ? 'yes' : 'NO'}</td></tr>
+          <tr><td colSpan={2} className="diag-section">Renderer</td></tr>
+          <tr><td>keystrokes → IPC</td><td>{d.keystrokeCount} · {ago(d.lastKeystrokeTime)}</td></tr>
+          <tr><td>output events ← IPC</td><td>{d.outputEventCount} · {ago(d.lastOutputTime)}</td></tr>
+          <tr><td>output bytes</td><td>{d.outputBytes.toLocaleString()}</td></tr>
+          <tr><td>focus events</td><td>{d.focusEventCount} · {ago(d.lastFocusTime)}</td></tr>
+          <tr><td colSpan={2} className="diag-section">Main process (PTY)</td></tr>
+          {mainDiag ? <>
+            <tr><td>PID</td><td>{mainDiag.pid}</td></tr>
+            <tr><td>write calls → PTY</td><td>{mainDiag.writeCount} · {ago(mainDiag.lastWriteTime)}</td></tr>
+            <tr><td>data events ← PTY</td><td>{mainDiag.dataCount} · {ago(mainDiag.lastDataTime)}</td></tr>
+            <tr><td>data bytes</td><td>{mainDiag.dataBytes.toLocaleString()}</td></tr>
+          </> : <tr><td colSpan={2} className="diag-warn">PTY not found (exited?)</td></tr>}
+        </tbody>
+      </table>
+      {logPath && (
+        <div className="terminal-diag-logpath">
+          <span className="terminal-diag-logpath-label">log:</span>
+          <span className="terminal-diag-logpath-value" title={logPath}>{logPath}</span>
+          <button className="terminal-diag-copy-btn" onClick={() => window.terminalAPI.clipboardWrite(logPath)} title="Copy path">⧉</button>
+        </div>
+      )}
+      <div className="terminal-diag-hint">Ctrl+Shift+` to close · refreshes every 500ms</div>
+    </div>
+  );
+};
 
 interface TerminalPanelProps {
   terminalId: string;
@@ -19,6 +77,11 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResult, setSearchResult] = useState<{ resultIndex: number; resultCount: number } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [showDiag, setShowDiag] = useState(false);
+  const [, tickDiag] = useReducer((x: number) => x + 1, 0);
+  const diagRef = useRef({ keystrokeCount: 0, lastKeystrokeTime: 0, outputEventCount: 0, lastOutputTime: 0, outputBytes: 0, focusEventCount: 0, lastFocusTime: 0 });
+  const mainDiagRef = useRef<{ pid: number; writeCount: number; lastWriteTime: number; dataCount: number; lastDataTime: number; dataBytes: number } | null>(null);
+  const logPathRef = useRef<string>('');
 
   const config = useTerminalStore((s) => s.config);
   const focusedTerminalId = useTerminalStore((s) => s.focusedTerminalId);
@@ -33,6 +96,9 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
 
   const handleFocus = useCallback(() => {
     useTerminalStore.getState().setFocus(terminalId);
+    diagRef.current.focusEventCount++;
+    diagRef.current.lastFocusTime = Date.now();
+    window.terminalAPI.diagLog('renderer:focus-gained', { terminalId });
     // Always re-focus xterm textarea — the store won't trigger a re-focus
     // if this panel is already the focused one (isFocused won't change)
     try {
@@ -91,6 +157,11 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
     // Keyboard shortcuts handled inside terminal
     term.attachCustomKeyEventHandler((event) => {
       if (event.type !== 'keydown') return true;
+      // Ctrl+Shift+`: toggle diagnostics overlay
+      if (event.ctrlKey && event.shiftKey && event.key === '`') {
+        setShowDiag((v) => !v);
+        return false;
+      }
       // Ctrl+F: open search
       if (event.ctrlKey && !event.shiftKey && (event.key === 'f' || event.key === 'F')) {
         setShowSearch(true);
@@ -150,6 +221,9 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
 
     // Write data to PTY when user types
     const dataDisposable = term.onData((data) => {
+      diagRef.current.keystrokeCount++;
+      diagRef.current.lastKeystrokeTime = Date.now();
+      window.terminalAPI.diagLog('renderer:keystroke', { terminalId, bytes: data.length });
       window.terminalAPI.writePty(terminalId, data);
     });
 
@@ -157,6 +231,9 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
     const unsubscribePtyData = window.terminalAPI.onPtyData(
       (id: string, data: string) => {
         if (id === terminalId) {
+          diagRef.current.outputEventCount++;
+          diagRef.current.lastOutputTime = Date.now();
+          diagRef.current.outputBytes += data.length;
           term.write(data);
           // Parse cwd from PowerShell prompt "PS C:\path>" or cmd prompt "C:\path>"
           // Strip ANSI escape sequences first to avoid capturing colored output as paths
@@ -264,10 +341,25 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
       }
     });
 
-    // Focus tracking via textarea focus
+    // Focus tracking via textarea focus/blur
     const textareaEl = containerRef.current.querySelector('textarea');
+    const handleBlur = () => {
+      window.terminalAPI.diagLog('renderer:focus-lost', { terminalId });
+      // Re-focus if this terminal is still the active one AND nothing else explicitly took
+      // focus. Check document.activeElement instead of overlay visibility flags — a panel
+      // being visible (e.g. Copilot sidebar) doesn't mean it holds keyboard focus.
+      requestAnimationFrame(() => {
+        if (useTerminalStore.getState().focusedTerminalId !== terminalId) return;
+        const active = document.activeElement;
+        const somethingElseTookFocus = active && active !== document.body && !containerRef.current?.contains(active);
+        if (!somethingElseTookFocus) {
+          try { terminalRef.current?.focus(); } catch { /* disposed */ }
+        }
+      });
+    };
     if (textareaEl) {
       textareaEl.addEventListener('focus', handleFocus);
+      textareaEl.addEventListener('blur', handleBlur);
     }
 
     // ResizeObserver for fit — debounced to avoid rapid resize races
@@ -331,6 +423,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
       unsubscribePtyExit();
       if (textareaEl) {
         textareaEl.removeEventListener('focus', handleFocus);
+        textareaEl.removeEventListener('blur', handleBlur);
       }
       containerEl.removeEventListener('wheel', handleWheel);
       containerEl.removeEventListener('contextmenu', handleContextMenu, true);
@@ -398,6 +491,23 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [isFocused, terminalId]);
 
+  // Poll main-process PTY stats when diagnostics overlay is open
+  useEffect(() => {
+    if (!showDiag) return;
+    if (!logPathRef.current) {
+      window.terminalAPI.getDiagLogPath().then((p) => { logPathRef.current = p; });
+    }
+    const refresh = () => {
+      window.terminalAPI.getPtyDiag(terminalId).then((stats) => {
+        mainDiagRef.current = stats;
+        tickDiag();
+      });
+    };
+    refresh();
+    const id = setInterval(refresh, 500);
+    return () => clearInterval(id);
+  }, [showDiag, terminalId]);
+
   // Apply tab color or default color as terminal background tint via CSS overlay
   const title = useTerminalStore((s) => s.terminals.get(terminalId)?.title);
   const tabColor = useTerminalStore((s) => s.terminals.get(terminalId)?.tabColor);
@@ -425,7 +535,20 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
   const className = `terminal-panel${isFocused ? ' focused' : ''}`;
 
   return (
-    <div className={className} onMouseDown={handleFocus}>
+    <div
+      className={className}
+      onMouseDownCapture={(e) => {
+        if (!isFocused) {
+          // This click is a pane-switch click, not a TUI interaction.
+          // Stop it before xterm sees it so it isn't forwarded to the PTY as a
+          // mouse event (which causes mouse-reporting apps like Claude CLI to
+          // shift their internal focus away from the input field).
+          e.stopPropagation();
+          window.terminalAPI.diagLog('renderer:pane-switch-click-suppressed', { terminalId });
+        }
+        handleFocus();
+      }}
+    >
       {showSearch && (
         <div className="terminal-search-bar">
           <input
@@ -461,6 +584,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
         </div>
       )}
       {title && <div className="terminal-pane-title">{title}</div>}
+      {showDiag && <DiagnosticsOverlay terminalId={terminalId} diagRef={diagRef} mainDiag={mainDiagRef.current} logPath={logPathRef.current} onClose={() => setShowDiag(false)} />}
       <div ref={containerRef} className="xterm-container" />
       <button
         className="terminal-refocus-btn"

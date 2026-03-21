@@ -370,22 +370,22 @@ body,
 
 .terminal-pane-title {
   position: absolute;
-  top: 4px;
-  right: 8px;
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: 5;
   font-size: 11px;
   font-weight: 600;
   color: #f9e2af;
   background: rgba(49, 50, 68, 0.9);
   padding: 3px 10px;
-  border-radius: 4px;
-  border: 1px solid rgba(249, 226, 175, 0.3);
+  text-align: center;
+  border-bottom: 1px solid rgba(249, 226, 175, 0.3);
   opacity: 0.85;
   pointer-events: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 60%;
   line-height: 1.3;
   transition: opacity 0.2s;
 }
@@ -419,9 +419,107 @@ body,
   background: rgba(49, 50, 68, 1);
 }
 
-/* Shift pane title left when refocus button is visible */
-.terminal-panel:hover .terminal-pane-title {
-  right: 36px;
+/* Refocus button floats over the full-width title bar */
+
+/* ── Terminal diagnostics overlay ─────────────────────────────────── */
+.terminal-diag-overlay {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 200;
+  background: rgba(17, 17, 27, 0.96);
+  border: 1px solid var(--border-color, #45475a);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  color: var(--text-primary, #cdd6f4);
+  min-width: 280px;
+  pointer-events: all;
+  backdrop-filter: blur(4px);
+}
+
+.terminal-diag-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #89b4fa;
+}
+
+.terminal-diag-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #a6adc8);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 2px;
+  line-height: 1;
+}
+.terminal-diag-close:hover { color: var(--text-primary, #cdd6f4); }
+
+.terminal-diag-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.terminal-diag-table td {
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+
+.terminal-diag-table td:first-child {
+  color: var(--text-secondary, #a6adc8);
+  padding-right: 12px;
+}
+
+.diag-section {
+  color: #6c7086 !important;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-top: 6px !important;
+}
+
+.diag-ok { color: #a6e3a1; }
+.diag-warn { color: #f38ba8; font-weight: 600; }
+
+.terminal-diag-logpath {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 10px;
+  color: #585b70;
+}
+
+.terminal-diag-logpath-label { flex-shrink: 0; }
+
+.terminal-diag-logpath-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  max-width: 200px;
+  color: #6c7086;
+}
+
+.terminal-diag-copy-btn {
+  background: none;
+  border: none;
+  color: #585b70;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 2px;
+  flex-shrink: 0;
+}
+.terminal-diag-copy-btn:hover { color: #cdd6f4; }
+
+.terminal-diag-hint {
+  margin-top: 4px;
+  color: #585b70;
+  font-size: 10px;
 }
 
 .terminal-panel .xterm-container {
@@ -643,6 +741,34 @@ body,
   position: relative;
   width: 100%;
   height: 100%;
+}
+
+/* ===== Focus Mode / Normal Mode wrappers ===== */
+/* display:contents makes the normal-mode wrapper transparent to layout —
+   children participate as if the div were not there. */
+.tiling-normal-mode {
+  display: contents;
+}
+
+/* Hide all panes except the focused one — without unmounting TerminalPanel.
+   Use visibility (not display) so child elements can override it. */
+.tiling-focus-mode {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.tiling-focus-mode .split-container,
+.tiling-focus-mode .tiling-leaf {
+  visibility: hidden;
+}
+
+.tiling-focus-mode .tiling-leaf:has(.terminal-panel.focused) {
+  visibility: visible;
+  display: flex;
+  position: absolute;
+  inset: 0;
+  z-index: 10;
 }
 
 /* ===== Pane Drop Zones (inside each pane) ===== */

@@ -105,6 +105,20 @@ const StatusBar: React.FC = () => {
     <>
       <div className="status-bar">
         <div className="status-section status-left">
+          <button
+            className="status-mode-btn"
+            onClick={() => useTerminalStore.getState().toggleDirPicker()}
+            title="Directories"
+          >
+            &#128193;
+          </button>
+          <button
+            className="status-mode-btn"
+            onClick={() => useTerminalStore.getState().toggleCopilotPanel()}
+            title="AI Sessions"
+          >
+            &#129302;
+          </button>
           {focused ? (
             <>
               <span className="status-indicator" />

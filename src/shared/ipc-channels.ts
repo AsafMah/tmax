@@ -39,6 +39,9 @@ export const IPC = {
   VERSION_GET_APP_VERSION: 'version:getAppVersion',
   VERSION_RESTART_AND_UPDATE: 'version:restartAndUpdate',
   CLIPBOARD_SAVE_IMAGE: 'clipboard:saveImage',
+  PTY_GET_DIAG: 'pty:getDiag',
+  DIAG_LOG: 'diag:log',
+  DIAG_GET_LOG_PATH: 'diag:getLogPath',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

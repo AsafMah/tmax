@@ -45,6 +45,10 @@ const App: React.FC = () => {
       try {
         await loadConfig();
         await useTerminalStore.getState().loadDirs();
+        // Load AI session lists before restore so getStartupCommand() can
+        // determine the correct agent (copilot vs claude) for each terminal.
+        await useTerminalStore.getState().loadCopilotSessions();
+        await useTerminalStore.getState().loadClaudeCodeSessions();
         if (cancelled) return;
         if (useTerminalStore.getState().terminals.size === 0) {
           const restored = await useTerminalStore.getState().restoreSession();

@@ -12,6 +12,7 @@ import { notifyCopilotSession, clearNotificationCooldowns } from './copilot-noti
 import { ClaudeCodeSessionMonitor } from './claude-code-session-monitor';
 import { ClaudeCodeSessionWatcher } from './claude-code-session-watcher';
 import { VersionChecker } from './version-checker';
+import { initDiagLogger, getDiagLogPath, diagLog } from './diag-logger';
 
 // Handle Squirrel.Windows lifecycle events (install, update, uninstall)
 // Must be at the top before any other initialization
@@ -189,6 +190,18 @@ function registerIpcHandlers(): void {
 
   ipcMain.on(IPC.PTY_WRITE, (_event, id: string, data: string) => {
     ptyManager!.write(id, data);
+  });
+
+  ipcMain.handle(IPC.PTY_GET_DIAG, (_event, id: string) => {
+    return ptyManager?.getStats(id) ?? null;
+  });
+
+  ipcMain.on(IPC.DIAG_LOG, (_event, event: string, data?: Record<string, unknown>) => {
+    diagLog(event, data);
+  });
+
+  ipcMain.handle(IPC.DIAG_GET_LOG_PATH, () => {
+    return getDiagLogPath();
   });
 
   ipcMain.handle(IPC.CONFIG_GET, () => {
@@ -445,6 +458,7 @@ process.on('uncaughtException', (error) => {
 app.whenReady().then(() => {
   try {
     Menu.setApplicationMenu(null);
+    initDiagLogger();
     setupConfigStore();
     console.log('Config store ready');
     setupPtyManager();
@@ -472,6 +486,7 @@ app.whenReady().then(() => {
 
   // Wake up ConPTY processes after system resume from sleep/hibernate
   powerMonitor.on('resume', () => {
+    diagLog('system:resume');
     console.log('System resumed from sleep, pinging all PTYs');
     ptyManager?.resizeAll();
   });

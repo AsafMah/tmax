@@ -1129,22 +1129,30 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
   },
 
   toggleViewMode: () => {
-    const { viewMode, layout, preGridRoot } = get();
+    const { viewMode, layout, preGridRoot, gridColumns } = get();
     if (viewMode === 'grid') {
-      // Exit "Split Selected" → restore original layout in split mode
+      // Grid → Focus: restore original layout if from "Split Selected"
       const restored = preGridRoot || layout.tilingRoot;
       set({
-        viewMode: 'split',
+        viewMode: 'focus',
         layout: { ...layout, tilingRoot: restored },
         preGridRoot: null,
         gridTabIds: {},
       });
-    } else if (viewMode === 'split') {
-      // Split → Focus
-      set({ viewMode: 'focus' });
     } else {
-      // Focus → Split
-      set({ viewMode: 'split' });
+      // Focus → Grid: build grid from all terminals
+      const root = layout.tilingRoot;
+      if (!root) {
+        set({ viewMode: 'grid' });
+        return;
+      }
+      const ids = getLeafOrder(root);
+      const gridRoot = buildGridTree(ids, gridColumns || undefined);
+      set({
+        viewMode: 'grid',
+        preGridRoot: root,
+        layout: { ...layout, tilingRoot: gridRoot },
+      });
     }
   },
 
@@ -1487,16 +1495,17 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
   saveSession: async () => {
     const { terminals, layout, favoriteDirs, recentDirs, config, copilotSessions, claudeCodeSessions } = get();
 
-    // Reconstruct startupCommand from aiSessionId if it was cleared
+    // For AI sessions, always derive the command from session type to avoid stale
+    // startupCommand (e.g. user opened copilot, exited, then started claude manually).
     function getStartupCommand(t: TerminalInstance | undefined): string {
-      if (t?.startupCommand) return t.startupCommand;
-      if (!t?.aiSessionId) return '';
-      // Check if it's a copilot or claude session
-      const isCopilot = copilotSessions.some((s) => s.id === t.aiSessionId);
-      if (isCopilot) return `${config?.copilotCommand || 'agency copilot'} --resume ${t.aiSessionId}`;
-      const isClaude = claudeCodeSessions.some((s) => s.id === t.aiSessionId);
-      if (isClaude) return `${config?.claudeCodeCommand || 'claude'} --resume ${t.aiSessionId}`;
-      return '';
+      if (!t) return '';
+      if (t.aiSessionId) {
+        const isCopilot = copilotSessions.some((s) => s.id === t.aiSessionId);
+        if (isCopilot) return `${config?.copilotCommand || 'agency copilot'} --resume ${t.aiSessionId}`;
+        const isClaude = claudeCodeSessions.some((s) => s.id === t.aiSessionId);
+        if (isClaude) return `${config?.claudeCodeCommand || 'claude'} --resume ${t.aiSessionId}`;
+      }
+      return t.startupCommand || '';
     }
 
     function serializeNode(node: LayoutNode): unknown {
@@ -1719,10 +1728,24 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
       const order = getLeafOrder(layout.tilingRoot);
       newRoot = insertLeaf(layout.tilingRoot, order[order.length - 1], id, 'right');
     }
+
+    // In grid mode, also update preGridRoot and rebuild the grid
+    const { viewMode, preGridRoot, gridColumns } = get();
+    let newPreGridRoot = preGridRoot;
+    if (viewMode === 'grid') {
+      if (preGridRoot) {
+        const preOrder = getLeafOrder(preGridRoot);
+        newPreGridRoot = insertLeaf(preGridRoot, preOrder[preOrder.length - 1], id, 'right');
+      }
+      const allIds = getLeafOrder(newRoot);
+      newRoot = buildGridTree(allIds, gridColumns || undefined) || newRoot;
+    }
+
     set({
       terminals: newTerminals,
       layout: { ...layout, tilingRoot: newRoot },
       focusedTerminalId: id,
+      preGridRoot: newPreGridRoot,
     });
   },
 
@@ -1730,7 +1753,7 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
     set({ copilotSessions: sessions });
   },
 
-  updateTerminalTitleFromSession: (session: CopilotSessionSummary) => {
+  updateTerminalTitleFromSession: (session: CopilotSessionSummary, sessionType?: 'copilot' | 'claude') => {
     if (!session.summary) return;
     const { terminals } = get();
     const newTerminals = new Map(terminals);
@@ -1750,14 +1773,26 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
       // Match by explicit aiSessionId
       let matched = current.aiSessionId === session.id;
 
-      // Auto-link: if no terminal has this session yet, match by cwd + process name
+      // Auto-link: if no terminal has this session yet, match by cwd + process name.
+      // Only link if the process type matches the session type to avoid cross-linking
+      // (e.g. copilot monitor linking a terminal running claude code).
       if (!matched && !alreadyLinked && !current.aiSessionId && session.cwd) {
         const proc = current.lastProcess.toLowerCase();
         const titleLower = current.title.toLowerCase();
-        const isAiAgent = (s: string) => s.includes('claude') || s === 'cc' || s.includes('copilot') || s.includes('agency') || s.includes('frodo');
-        const isAiProcess = isAiAgent(proc) || isAiAgent(titleLower);
+        const isCopilotProc = (s: string) => s.includes('copilot') || s.includes('agency') || s.includes('frodo');
+        const isClaudeProc = (s: string) => s.includes('claude') || s === 'cc';
+        let isMatchingProcess = false;
+        if (sessionType === 'copilot') {
+          isMatchingProcess = isCopilotProc(proc) || isCopilotProc(titleLower);
+        } else if (sessionType === 'claude') {
+          isMatchingProcess = isClaudeProc(proc) || isClaudeProc(titleLower);
+        } else {
+          // Fallback: match any AI process
+          const isAiAgent = (s: string) => isClaudeProc(s) || isCopilotProc(s);
+          isMatchingProcess = isAiAgent(proc) || isAiAgent(titleLower);
+        }
         const normCwd = (p: string) => p.replace(/[\\/]+$/, '').replace(/\\/g, '/').toLowerCase();
-        if (isAiProcess && normCwd(current.cwd) === normCwd(session.cwd)) {
+        if (isMatchingProcess && normCwd(current.cwd) === normCwd(session.cwd)) {
           // Link this terminal to the session; preserve existing custom title
           current = { ...current, aiSessionId: session.id, aiAutoTitle: !current.customTitle, customTitle: true };
           newTerminals.set(id, current);
@@ -1768,8 +1803,10 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
       }
 
       if (matched && current.aiAutoTitle) {
-        const summary = session.summary.length > 60 ? session.summary.slice(0, 57) + '...' : session.summary;
-        const title = summary;
+        // Strip XML/HTML tags from summary (e.g. slash command markup)
+        const clean = session.summary.replace(/<[^>]+>/g, '').trim();
+        const summary = clean.length > 60 ? clean.slice(0, 57) + '...' : clean;
+        const title = summary || current.title;
         if (current.title !== title) {
           newTerminals.set(id, { ...newTerminals.get(id)!, title });
           changed = true;
@@ -1783,14 +1820,14 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
     set((s) => ({
       copilotSessions: [...s.copilotSessions.filter((x) => x.id !== session.id), session],
     }));
-    get().updateTerminalTitleFromSession(session);
+    get().updateTerminalTitleFromSession(session, 'copilot');
   },
 
   updateCopilotSession: (session: CopilotSessionSummary) => {
     set((s) => ({
       copilotSessions: s.copilotSessions.map((x) => (x.id === session.id ? session : x)),
     }));
-    get().updateTerminalTitleFromSession(session);
+    get().updateTerminalTitleFromSession(session, 'copilot');
   },
 
   removeCopilotSession: (sessionId: string) => {
@@ -1878,10 +1915,24 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
       const order = getLeafOrder(layout.tilingRoot);
       newRoot = insertLeaf(layout.tilingRoot, order[order.length - 1], id, 'right');
     }
+
+    // In grid mode, also update preGridRoot and rebuild the grid
+    const { viewMode, preGridRoot, gridColumns } = get();
+    let newPreGridRoot = preGridRoot;
+    if (viewMode === 'grid') {
+      if (preGridRoot) {
+        const preOrder = getLeafOrder(preGridRoot);
+        newPreGridRoot = insertLeaf(preGridRoot, preOrder[preOrder.length - 1], id, 'right');
+      }
+      const allIds = getLeafOrder(newRoot);
+      newRoot = buildGridTree(allIds, gridColumns || undefined) || newRoot;
+    }
+
     set({
       terminals: newTerminals,
       layout: { ...layout, tilingRoot: newRoot },
       focusedTerminalId: id,
+      preGridRoot: newPreGridRoot,
     });
   },
 
@@ -1889,14 +1940,14 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
     set((s) => ({
       claudeCodeSessions: [...s.claudeCodeSessions.filter((x) => x.id !== session.id), session],
     }));
-    get().updateTerminalTitleFromSession(session);
+    get().updateTerminalTitleFromSession(session, 'claude');
   },
 
   updateClaudeCodeSession: (session: CopilotSessionSummary) => {
     set((s) => ({
       claudeCodeSessions: s.claudeCodeSessions.map((x) => (x.id === session.id ? session : x)),
     }));
-    get().updateTerminalTitleFromSession(session);
+    get().updateTerminalTitleFromSession(session, 'claude');
   },
 
   removeClaudeCodeSession: (sessionId: string) => {

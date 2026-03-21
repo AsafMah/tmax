@@ -1,6 +1,15 @@
 import { contextBridge, ipcRenderer, clipboard } from 'electron';
 import { IPC } from '../shared/ipc-channels';
 
+export interface PtyDiag {
+  pid: number;
+  writeCount: number;
+  lastWriteTime: number;
+  dataCount: number;
+  lastDataTime: number;
+  dataBytes: number;
+}
+
 export interface TerminalAPI {
   createPty(opts: {
     id: string;
@@ -27,6 +36,9 @@ export interface TerminalAPI {
   checkForUpdates(): void;
   restartAndUpdate(): void;
   onUpdateStatusChanged(cb: (info: { status: string; current: string; latest?: string; url?: string; error?: string; releaseNotes?: string }) => void): () => void;
+  getPtyDiag(id: string): Promise<PtyDiag | null>;
+  diagLog(event: string, data?: Record<string, unknown>): void;
+  getDiagLogPath(): Promise<string>;
 }
 
 const terminalAPI: TerminalAPI = {
@@ -255,6 +267,18 @@ const terminalAPI: TerminalAPI = {
 
   restartAndUpdate() {
     ipcRenderer.send(IPC.VERSION_RESTART_AND_UPDATE);
+  },
+
+  getPtyDiag(id: string) {
+    return ipcRenderer.invoke(IPC.PTY_GET_DIAG, id);
+  },
+
+  diagLog(event: string, data?: Record<string, unknown>) {
+    ipcRenderer.send(IPC.DIAG_LOG, event, data);
+  },
+
+  getDiagLogPath() {
+    return ipcRenderer.invoke(IPC.DIAG_GET_LOG_PATH);
   },
 
   onUpdateStatusChanged(cb: (info: { status: string; current: string; latest?: string; url?: string; error?: string }) => void): () => void {

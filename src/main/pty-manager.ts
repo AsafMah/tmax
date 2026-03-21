@@ -1,6 +1,7 @@
 import { IPty, spawn } from 'node-pty';
 import { existsSync, statSync } from 'fs';
 import { homedir } from 'os';
+import { diagLog, sanitize } from './diag-logger';
 
 export interface PtyCreateOpts {
   id: string;
@@ -42,12 +43,26 @@ function sanitizeEnv(env: Record<string, string>): Record<string, string> {
   return clean;
 }
 
+export interface PtyStats {
+  pid: number;
+  writeCount: number;
+  lastWriteTime: number;
+  dataCount: number;
+  lastDataTime: number;
+  dataBytes: number;
+}
+
 export class PtyManager {
   private ptys = new Map<string, IPty>();
+  private stats = new Map<string, PtyStats>();
   private callbacks: PtyCallbacks;
 
   constructor(callbacks: PtyCallbacks) {
     this.callbacks = callbacks;
+  }
+
+  getStats(id: string): PtyStats | null {
+    return this.stats.get(id) ?? null;
   }
 
   create(opts: PtyCreateOpts): { id: string; pid: number } {
@@ -72,13 +87,20 @@ export class PtyManager {
     });
 
     this.ptys.set(opts.id, ptyProcess);
+    this.stats.set(opts.id, { pid: ptyProcess.pid, writeCount: 0, lastWriteTime: 0, dataCount: 0, lastDataTime: 0, dataBytes: 0 });
+    diagLog('pty:created', { id: opts.id, pid: ptyProcess.pid, shell: opts.shellPath, cwd });
 
     ptyProcess.onData((data) => {
+      const s = this.stats.get(opts.id);
+      if (s) { s.dataCount++; s.lastDataTime = Date.now(); s.dataBytes += data.length; }
+      diagLog('pty:data', { id: opts.id, bytes: data.length });
       this.callbacks.onData(opts.id, data);
     });
 
     ptyProcess.onExit(({ exitCode }) => {
+      diagLog('pty:exit', { id: opts.id, exitCode });
       this.ptys.delete(opts.id);
+      this.stats.delete(opts.id);
       this.callbacks.onExit(opts.id, exitCode);
     });
 
@@ -88,13 +110,19 @@ export class PtyManager {
   write(id: string, data: string): void {
     const pty = this.ptys.get(id);
     if (pty) {
+      const s = this.stats.get(id);
+      if (s) { s.writeCount++; s.lastWriteTime = Date.now(); }
+      diagLog('pty:write', { id, bytes: data.length, preview: sanitize(data) });
       pty.write(data);
+    } else {
+      diagLog('pty:write:no-pty', { id, bytes: data.length });
     }
   }
 
   resize(id: string, cols: number, rows: number): void {
     const pty = this.ptys.get(id);
     if (pty) {
+      diagLog('pty:resize', { id, cols, rows });
       pty.resize(cols, rows);
     }
   }

@@ -73,15 +73,16 @@ const TilingLayout: React.FC = () => {
     );
   }
 
-  if (viewMode === 'focus' && focusedTerminalId) {
-    return (
-      <div className="tiling-leaf">
-        <TerminalPanel terminalId={focusedTerminalId} />
-      </div>
-    );
-  }
-
-  return <TilingNode node={tilingRoot} />;
+  // Always render a stable wrapper div so React never unmounts the TilingNode tree
+  // on mode changes. Changing the root element type (div vs TilingNode) would cause
+  // a full remount, destroying xterm instances and losing input focus.
+  // In focus mode the CSS class hides non-focused panes via visibility tricks.
+  // In normal mode display:contents makes the wrapper transparent to layout.
+  return (
+    <div className={viewMode === 'focus' ? 'tiling-focus-mode' : 'tiling-normal-mode'}>
+      <TilingNode node={tilingRoot} />
+    </div>
+  );
 };
 
 export default TilingLayout;
