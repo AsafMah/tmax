@@ -33,8 +33,8 @@ const TilingNode: React.FC<TilingNodeProps> = ({ node }) => {
           flexShrink: 0,
           overflow: 'hidden',
           display: 'flex',
-          minWidth: isHorizontal ? 0 : undefined,
-          minHeight: !isHorizontal ? 0 : undefined,
+          minWidth: isHorizontal ? 120 : undefined,
+          minHeight: !isHorizontal ? 60 : undefined,
         }}
       >
         <TilingNode node={splitNode.first} />
@@ -50,8 +50,8 @@ const TilingNode: React.FC<TilingNodeProps> = ({ node }) => {
           flexShrink: 0,
           overflow: 'hidden',
           display: 'flex',
-          minWidth: isHorizontal ? 0 : undefined,
-          minHeight: !isHorizontal ? 0 : undefined,
+          minWidth: isHorizontal ? 120 : undefined,
+          minHeight: !isHorizontal ? 60 : undefined,
         }}
       >
         <TilingNode node={splitNode.second} />
