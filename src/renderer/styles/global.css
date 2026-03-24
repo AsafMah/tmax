@@ -525,7 +525,9 @@ body,
 .terminal-panel .xterm-container {
   width: 100%;
   flex: 1;
+  min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
 .terminal-panel .xterm-container .xterm {
