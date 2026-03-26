@@ -205,6 +205,21 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
         if (sel) window.terminalAPI.clipboardWrite(sel);
         return false;
       }
+      // Ctrl+Arrow: send win32-input-mode key events so CMD and other shells
+      // that don't understand VT sequences can handle word navigation (#19)
+      // Format: CSI Vk;Sc;Uc;Kd;Cs;Rc _
+      if (event.ctrlKey && !event.altKey) {
+        const arrowMap: Record<string, [number, number]> = {
+          'ArrowLeft': [37, 75], 'ArrowRight': [39, 77],
+          'ArrowUp': [38, 72], 'ArrowDown': [40, 80],
+        };
+        const arrow = arrowMap[event.key];
+        if (arrow) {
+          const cs = 8 | (event.shiftKey ? 16 : 0); // LEFT_CTRL + optional SHIFT
+          window.terminalAPI.writePty(terminalId, `\x1b[${arrow[0]};${arrow[1]};0;1;${cs};1_`);
+          return false;
+        }
+      }
       // Ctrl+Enter / Shift+Enter: send win32-input-mode key events
       // Format: CSI Vk;Sc;Uc;Kd;Cs;Rc _ (VK_RETURN=13, ScanCode=28)
       // ConPTY processes these when an app has enabled win32-input-mode
