@@ -163,6 +163,10 @@ export class PtyManager {
     }
   }
 
+  getPid(id: string): number | null {
+    return this.stats.get(id)?.pid ?? null;
+  }
+
   kill(id: string): void {
     const pty = this.ptys.get(id);
     if (pty) {

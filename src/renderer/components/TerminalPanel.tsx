@@ -628,6 +628,14 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
       {showDiag && <DiagnosticsOverlay terminalId={terminalId} diagRef={diagRef} mainDiag={mainDiagRef.current} logPath={logPathRef.current} onClose={() => setShowDiag(false)} />}
       <div ref={containerRef} className="xterm-container" />
       <button
+        className="terminal-diff-btn"
+        title="Open diff review"
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          useTerminalStore.getState().openDiffReview(terminalId);
+        }}
+      >&#9998;</button>
+      <button
         className="terminal-refocus-btn"
         title="Re-focus terminal (use if stuck)"
         onMouseDown={(e) => {

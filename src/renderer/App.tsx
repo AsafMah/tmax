@@ -19,6 +19,7 @@ import Settings from './components/Settings';
 import CommandPalette from './components/CommandPalette';
 import DirPanel from './components/DirPanel';
 import CopilotPanel from './components/CopilotPanel';
+import DiffReview from './components/DiffReview';
 
 const App: React.FC = () => {
   const loadConfig = useTerminalStore((s) => s.loadConfig);
@@ -176,6 +177,7 @@ const App: React.FC = () => {
         {showShortcuts && (
           <ShortcutsHelp onClose={() => useTerminalStore.getState().toggleShortcuts()} />
         )}
+        <DiffReview />
       </div>
     </DndContext>
   );
