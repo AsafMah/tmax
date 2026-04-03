@@ -32,6 +32,12 @@ const DetachedApp: React.FC<DetachedAppProps> = ({ terminalId }) => {
       const rawBg = themeConfig?.background ?? '#1e1e2e';
       const bgColor = bgOpacity < 1 ? hexToTerminalRgba(rawBg, bgOpacity) : rawBg;
 
+      // Add transparency class so CSS layers become translucent
+      if (materialActive) {
+        document.documentElement.classList.add('transparency-active');
+        document.body.style.background = 'transparent';
+      }
+
       const term = new Terminal({
         theme: themeConfig
           ? {

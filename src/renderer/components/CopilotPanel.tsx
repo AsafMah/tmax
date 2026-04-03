@@ -323,12 +323,20 @@ const CopilotPanel: React.FC = () => {
     store.clearPromptsDialogRequest();
     // Find the AI session for this terminal
     const terminal = store.terminals.get(tid);
-    if (!terminal?.aiSessionId) return;
-    const sessionId = terminal.aiSessionId;
-    // Find session metadata
     const allSessions = [...store.copilotSessions, ...store.claudeCodeSessions];
-    const session = allSessions.find((s) => s.id === sessionId);
+    let session: typeof allSessions[0] | undefined;
+    if (terminal?.aiSessionId) {
+      session = allSessions.find((s) => s.id === terminal.aiSessionId);
+    }
+    // Fallback: find the most recent session matching this terminal's CWD
+    if (!session && terminal?.cwd) {
+      const cwd = terminal.cwd.replace(/\\/g, '/').toLowerCase();
+      session = allSessions
+        .filter((s) => s.cwd?.replace(/\\/g, '/').toLowerCase() === cwd)
+        .sort((a, b) => (b.lastActivityTime || 0) - (a.lastActivityTime || 0))[0];
+    }
     if (!session) return;
+    const sessionId = session.id;
     // Load prompts
     const api = window.terminalAPI as any;
     const loadPrompts = session.provider === 'claude-code'
