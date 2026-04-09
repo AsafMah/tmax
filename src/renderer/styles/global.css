@@ -2324,15 +2324,42 @@ select.settings-input {
 .file-explorer-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
-  font-size: 13px;
+  gap: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
   border-bottom: 1px solid var(--border-color);
-  white-space: nowrap;
+}
+
+.file-explorer-nav {
+  display: flex;
+  gap: 2px;
+}
+
+.file-explorer-nav-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.file-explorer-nav-btn:hover {
+  background: rgba(137, 180, 250, 0.12);
+  color: var(--text-primary);
+}
+
+.file-explorer-path {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .file-explorer-list {
@@ -2343,36 +2370,73 @@ select.settings-input {
 .file-entry {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
+  gap: 5px;
+  padding: 2px 8px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  border-radius: 3px;
+  margin: 0 4px;
 }
 
 .file-entry:hover {
-  background: rgba(137, 180, 250, 0.08);
+  background: rgba(137, 180, 250, 0.1);
 }
 
 .file-entry.dir {
   color: var(--text-primary);
-  font-weight: 500;
 }
 
 .file-entry.file {
   color: var(--text-secondary);
 }
 
-.file-icon {
-  width: 12px;
+.file-chevron {
+  width: 10px;
   text-align: center;
-  font-size: 8px;
+  font-size: 7px;
   flex-shrink: 0;
   color: var(--text-secondary);
+  opacity: 0.6;
 }
+
+.file-type-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 14px;
+  line-height: 16px;
+}
+
+/* Folder icons */
+.file-type-icon.folder::before { content: '\1F4C1'; font-size: 13px; }
+.file-type-icon.folder-open::before { content: '\1F4C2'; font-size: 13px; }
+
+/* File icons by extension */
+.file-type-icon.ts::before,
+.file-type-icon.tsx::before { content: 'TS'; font-size: 8px; font-weight: 700; color: #3178c6; }
+.file-type-icon.js::before,
+.file-type-icon.jsx::before { content: 'JS'; font-size: 8px; font-weight: 700; color: #f7df1e; }
+.file-type-icon.json::before { content: '{}'; font-size: 9px; font-weight: 600; color: #f9e2af; }
+.file-type-icon.css::before { content: '#'; font-size: 11px; font-weight: 700; color: #89b4fa; }
+.file-type-icon.html::before { content: '<>'; font-size: 9px; font-weight: 600; color: #fab387; }
+.file-type-icon.md::before { content: 'M'; font-size: 10px; font-weight: 700; color: #a6adc8; }
+.file-type-icon.py::before { content: '\1F40D'; font-size: 11px; }
+.file-type-icon.sh::before,
+.file-type-icon.bash::before { content: '$'; font-size: 11px; font-weight: 700; color: #a6e3a1; }
+.file-type-icon.yml::before,
+.file-type-icon.yaml::before { content: 'Y'; font-size: 10px; font-weight: 700; color: #f38ba8; }
+.file-type-icon.png::before,
+.file-type-icon.jpg::before,
+.file-type-icon.svg::before,
+.file-type-icon.ico::before { content: '\1F5BC'; font-size: 11px; }
+.file-type-icon.git::before { content: '\2B24'; font-size: 8px; color: #f38ba8; }
+.file-type-icon.lock::before { content: '\1F512'; font-size: 11px; }
+.file-type-icon.default::before { content: '\25CB'; font-size: 9px; color: var(--text-secondary); }
 
 .file-name {
   overflow: hidden;
@@ -2380,7 +2444,7 @@ select.settings-input {
 }
 
 .file-children {
-  /* indent handled via inline paddingLeft */
+  padding-left: 4px;
 }
 
 /* ===== Input Dialog ===== */

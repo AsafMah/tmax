@@ -16,33 +16,52 @@ const FileExplorer: React.FC = () => {
   const focusedId = useTerminalStore((s) => s.focusedTerminalId);
   const terminals = useTerminalStore((s) => s.terminals);
   const focused = focusedId ? terminals.get(focusedId) : null;
-  const cwd = focused?.cwd || '';
+  const terminalCwd = focused?.cwd || '';
 
+  const [browsePath, setBrowsePath] = useState('');
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [children, setChildren] = useState<Record<string, FileEntry[]>>({});
   const [filter, setFilter] = useState('');
+  const [showHidden, setShowHidden] = useState(false);
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const [resizing, setResizing] = useState(false);
   const filterRef = useRef<HTMLInputElement>(null);
 
-  // Load root directory when CWD changes
+  const currentPath = browsePath || terminalCwd;
+
+  // Sync browsePath when terminal CWD changes
   useEffect(() => {
-    if (!show || !cwd) return;
+    if (terminalCwd) setBrowsePath(terminalCwd);
+  }, [terminalCwd]);
+
+  const navigateTo = useCallback((dir: string) => {
+    setBrowsePath(dir);
     setExpanded({});
     setChildren({});
     setFilter('');
-    (window.terminalAPI as any).fileList(cwd).then((entries: FileEntry[]) => {
-      setFiles(entries.filter((e: FileEntry) => !e.name.startsWith('.')));
+  }, []);
+
+  const navigateUp = useCallback(() => {
+    if (!currentPath) return;
+    const parent = currentPath.replace(/[/\\][^/\\]+[/\\]?$/, '') || currentPath.slice(0, 3); // e.g. C:\
+    navigateTo(parent);
+  }, [currentPath, navigateTo]);
+
+  // Load root directory
+  useEffect(() => {
+    if (!show || !currentPath) return;
+    (window.terminalAPI as any).fileList(currentPath).then((entries: FileEntry[]) => {
+      setFiles(showHidden ? entries : entries.filter((e: FileEntry) => !e.name.startsWith('.')));
     });
-  }, [cwd, show]);
+  }, [currentPath, show, showHidden]);
 
   const toggleDir = useCallback((dirPath: string) => {
     setExpanded((prev) => {
       const next = { ...prev, [dirPath]: !prev[dirPath] };
       if (next[dirPath] && !children[dirPath]) {
         (window.terminalAPI as any).fileList(dirPath).then((entries: FileEntry[]) => {
-          setChildren((c) => ({ ...c, [dirPath]: entries.filter((e: FileEntry) => !e.name.startsWith('.')) }));
+          setChildren((c) => ({ ...c, [dirPath]: showHidden ? entries : entries.filter((e: FileEntry) => !e.name.startsWith('.')) }));
         });
       }
       return next;
@@ -86,11 +105,16 @@ const FileExplorer: React.FC = () => {
       }
     }
 
+    const ext = entry.name.includes('.') ? entry.name.split('.').pop()?.toLowerCase() : '';
+    const fileIconClass = entry.isDirectory
+      ? (expanded[entry.path] ? 'folder-open' : 'folder')
+      : (ext || 'default');
+
     return (
       <div key={entry.path}>
         <div
           className={`file-entry${entry.isDirectory ? ' dir' : ' file'}`}
-          style={{ paddingLeft: 8 + depth * 14 }}
+          style={{ paddingLeft: 12 + depth * 16 }}
           onClick={() => {
             if (entry.isDirectory) {
               toggleDir(entry.path);
@@ -98,12 +122,20 @@ const FileExplorer: React.FC = () => {
               handleFileClick(entry.path);
             }
           }}
+          onDoubleClick={() => {
+            if (entry.isDirectory) {
+              navigateTo(entry.path);
+            }
+          }}
         >
-          <span className="file-icon">{entry.isDirectory ? (expanded[entry.path] ? '\u25BC' : '\u25B6') : '\u00B7'}</span>
+          {entry.isDirectory && (
+            <span className="file-chevron">{expanded[entry.path] ? '\u25BC' : '\u25B6'}</span>
+          )}
+          <span className={`file-type-icon ${fileIconClass}`} />
           <span className="file-name">{entry.name}</span>
         </div>
         {entry.isDirectory && expanded[entry.path] && children[entry.path] && (
-          <div className="file-children">
+          <div className="file-children" style={{ borderLeft: '1px solid var(--border-color)', marginLeft: 19 + depth * 16 }}>
             {children[entry.path].map((child) => renderEntry(child, depth + 1))}
           </div>
         )}
@@ -111,14 +143,22 @@ const FileExplorer: React.FC = () => {
     );
   };
 
-  const shortCwd = cwd.split(/[/\\]/).pop() || cwd;
+  const shortPath = currentPath.split(/[/\\]/).pop() || currentPath;
 
   return (
     <div className={`file-explorer-panel${resizing ? ' resizing' : ''}`} style={{ width, minWidth: width }}>
       <div className="file-explorer-resize" onMouseDown={handleResizeStart} />
       <div className="file-explorer-header">
-        <span title={cwd}>{shortCwd}</span>
-        <button className="dir-panel-close" onClick={() => useTerminalStore.getState().toggleFileExplorer()}>&#10005;</button>
+        <div className="file-explorer-nav">
+          <button className="file-explorer-nav-btn" onClick={navigateUp} title="Go up">&#8593;</button>
+          <button className="file-explorer-nav-btn" onClick={() => navigateTo(terminalCwd)} title="Go to terminal CWD">&#8962;</button>
+        </div>
+        <span className="file-explorer-path" title={currentPath}>{shortPath}</span>
+        <div style={{ display: 'flex', gap: '2px' }}>
+          <button className="file-explorer-nav-btn" onClick={() => setShowHidden((v) => !v)} title={showHidden ? 'Hide dotfiles' : 'Show dotfiles'}>{showHidden ? '\u25C9' : '\u25CB'}</button>
+          <button className="file-explorer-nav-btn" onClick={() => { setExpanded({}); }} title="Collapse all">&#8722;</button>
+          <button className="dir-panel-close" onClick={() => useTerminalStore.getState().toggleFileExplorer()}>&#10005;</button>
+        </div>
       </div>
       <input
         ref={filterRef}
