@@ -828,6 +828,13 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
     const toIndex = entries.findIndex(([id]) => id === overId);
     if (fromIndex === -1 || toIndex === -1) return;
 
+    // Adopt the drop target's group (or ungroup if target has no group)
+    const overTerminal = terminals.get(overId);
+    const draggedTerminal = terminals.get(draggedId);
+    if (draggedTerminal && overTerminal && draggedTerminal.groupId !== overTerminal.groupId) {
+      entries[fromIndex] = [draggedId, { ...draggedTerminal, groupId: overTerminal.groupId }];
+    }
+
     const [moved] = entries.splice(fromIndex, 1);
     entries.splice(toIndex, 0, moved);
 
