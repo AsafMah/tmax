@@ -86,20 +86,16 @@ const FileExplorer: React.FC = () => {
   }, [wslDistro]);
 
   const handleFileClick = useCallback((filePath: string, fileName: string) => {
-    const ext = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() || '' : fileName.toLowerCase();
-    if (TEXT_EXTENSIONS.has(ext)) {
-      (window.terminalAPI as any).fileRead(filePath, wslDistro).then((content: string | null) => {
-        if (content !== null) {
-          setPreview({ name: fileName, content });
-        } else {
-          openFileExternally(filePath);
-        }
-      }).catch(() => {
+    // Try to preview any file — fileRead returns null for binary/large files
+    (window.terminalAPI as any).fileRead(filePath, wslDistro).then((content: string | null) => {
+      if (content !== null) {
+        setPreview({ name: fileName, content });
+      } else {
         openFileExternally(filePath);
-      });
-    } else {
+      }
+    }).catch(() => {
       openFileExternally(filePath);
-    }
+    });
   }, [wslDistro, openFileExternally]);
 
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
