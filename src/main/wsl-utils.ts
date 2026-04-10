@@ -9,7 +9,7 @@ export interface WslDistroInfo {
   copilotBasePath: string;
 }
 
-const WSL_LOCALHOST = '\\\\wsl.localhost';
+const WSL_LOCALHOST = '//wsl.localhost';
 const WSL_EXE = 'wsl.exe';
 
 let cachedDistros: WslDistroInfo[] | null = null;
@@ -58,9 +58,8 @@ function getDistroHome(distro: string): string | null {
 }
 
 function buildUncPath(distro: string, linuxPath: string): string {
-  // Convert forward slashes to backslashes for the Windows UNC path portion
-  const winSegment = linuxPath.replace(/\//g, '\\');
-  return `${WSL_LOCALHOST}\\${distro}${winSegment}`;
+  // Use forward slashes — Node.js fs on Windows handles them correctly for UNC paths
+  return `${WSL_LOCALHOST}/${distro}${linuxPath}`;
 }
 
 export async function getWslDistroInfo(): Promise<WslDistroInfo[]> {
@@ -95,7 +94,7 @@ export async function getWslDistroInfo(): Promise<WslDistroInfo[]> {
 }
 
 export function wslUncToLinux(uncPath: string, distro: string): string {
-  const prefix = `${WSL_LOCALHOST}\\${distro}`;
+  const prefix = `${WSL_LOCALHOST}/${distro}`;
   if (!uncPath.startsWith(prefix)) {
     throw new Error(`Path does not start with expected prefix: ${prefix}`);
   }

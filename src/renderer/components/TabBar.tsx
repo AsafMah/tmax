@@ -329,20 +329,34 @@ const TabBar: React.FC<{ vertical?: boolean; side?: 'left' | 'right' }> = ({ ver
           ref={groupMenuRef}
           className="context-menu"
           style={{ left: groupMenu.x, top: groupMenu.y, zIndex: 1000 }}
+          onClick={(e) => e.stopPropagation()}
         >
-          <button className="context-menu-item" onClick={() => {
-            const name = prompt('Rename group:', tabGroups.get(groupMenu.groupId)?.name || '');
-            if (name?.trim()) useTerminalStore.getState().renameTabGroup(groupMenu.groupId, name.trim());
-            setGroupMenu(null);
-          }}>
-            Rename Group
-          </button>
-          <div className="context-menu-label">Group Color</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: '4px 10px' }}>
+          <div className="context-menu-inline-input">
+            <input
+              type="text"
+              defaultValue={tabGroups.get(groupMenu.groupId)?.name || ''}
+              placeholder="Group name..."
+              autoFocus
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') {
+                  const val = (e.target as HTMLInputElement).value.trim();
+                  if (val) useTerminalStore.getState().renameTabGroup(groupMenu.groupId, val);
+                  setGroupMenu(null);
+                }
+                if (e.key === 'Escape') setGroupMenu(null);
+              }}
+              onBlur={(e) => {
+                const val = e.target.value.trim();
+                if (val) useTerminalStore.getState().renameTabGroup(groupMenu.groupId, val);
+              }}
+            />
+          </div>
+          <div className="context-menu-separator" />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '8px 12px' }}>
             {TAB_COLORS.map((c) => (
               <div
                 key={c}
-                style={{ width: 16, height: 16, borderRadius: '50%', background: c, cursor: 'pointer', border: tabGroups.get(groupMenu.groupId)?.color === c ? '2px solid #fff' : '2px solid transparent' }}
                 onClick={() => {
                   const { tabGroups: groups } = useTerminalStore.getState();
                   const g = groups.get(groupMenu.groupId);
@@ -352,6 +366,15 @@ const TabBar: React.FC<{ vertical?: boolean; side?: 'left' | 'right' }> = ({ ver
                     useTerminalStore.setState({ tabGroups: newGroups });
                   }
                   setGroupMenu(null);
+                }}
+                style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: '50%',
+                  background: c,
+                  cursor: 'pointer',
+                  outline: tabGroups.get(groupMenu.groupId)?.color === c ? '2px solid #fff' : 'none',
+                  outlineOffset: 1,
                 }}
               />
             ))}
