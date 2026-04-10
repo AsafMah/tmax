@@ -262,7 +262,10 @@ const FileExplorer: React.FC = () => {
       {preview && ReactDOM.createPortal(
         <div
           className={`file-preview-overlay ${previewSide}`}
-          style={{ width: `${previewWidth}%` }}
+          style={{
+            width: `${previewWidth}%`,
+            ...(previewSide === 'left' ? { left: width + 1 } : {}),
+          }}
           tabIndex={0}
           ref={(el) => el?.focus()}
           onKeyDown={(e) => { if (e.key === 'Escape') setPreview(null); }}
@@ -290,7 +293,7 @@ const FileExplorer: React.FC = () => {
             <div className="file-preview-header">
               <span className="file-preview-name">{preview.name}</span>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button className="file-preview-btn" onClick={() => openFileExternally(preview.path)} title="Open in editor">Open in Editor</button>
+                <button className="file-preview-btn" onClick={() => openFileExternally(preview.path)} title="Open externally">&#8599;</button>
                 <button className="file-preview-btn" onClick={() => setPreviewSide((s) => s === 'right' ? 'left' : 'right')} title="Move to other side">{previewSide === 'right' ? '\u25C0' : '\u25B6'}</button>
                 <button className="file-preview-btn close" onClick={() => setPreview(null)} title="Close (Esc)">&#10005;</button>
               </div>
@@ -307,7 +310,7 @@ const FileExplorer: React.FC = () => {
               handleFileClick(ctxMenu.entry.path, ctxMenu.entry.name);
               setCtxMenu(null);
             }}>
-              Preview
+              &#128065; Preview
             </button>
           )}
           <button className="context-menu-item" onClick={() => {
@@ -318,14 +321,14 @@ const FileExplorer: React.FC = () => {
             }
             setCtxMenu(null);
           }}>
-            {ctxMenu.entry.isDirectory ? 'Open Folder' : 'Open in Editor'}
+            {ctxMenu.entry.isDirectory ? '\uD83D\uDCC2 Open Folder' : '\u2197 Open in Editor'}
           </button>
           {ctxMenu.entry.isDirectory && (
             <button className="context-menu-item" onClick={() => {
               navigateTo(ctxMenu.entry.path);
               setCtxMenu(null);
             }}>
-              Browse Here
+              &#128194; Browse Here
             </button>
           )}
           {ctxMenu.entry.isDirectory && (
@@ -338,14 +341,14 @@ const FileExplorer: React.FC = () => {
               }
               setCtxMenu(null);
             }}>
-              CD Here
+              &#9654; CD Here
             </button>
           )}
           <button className="context-menu-item" onClick={() => {
             window.terminalAPI.clipboardWrite(ctxMenu.entry.path);
             setCtxMenu(null);
           }}>
-            Copy Path
+            &#128203; Copy Path
           </button>
         </div>
       )}

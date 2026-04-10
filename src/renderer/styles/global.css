@@ -2506,7 +2506,7 @@ select.settings-input {
 }
 
 .file-preview-overlay.left {
-  left: 0;
+  right: auto;
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
   flex-direction: row-reverse;
 }
