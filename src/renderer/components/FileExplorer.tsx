@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { useTerminalStore } from '../state/terminal-store';
 
 interface FileEntry {
@@ -30,7 +31,7 @@ const FileExplorer: React.FC = () => {
   const [pathInputValue, setPathInputValue] = useState('');
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; entry: FileEntry } | null>(null);
   const ctxRef = useRef<HTMLDivElement>(null);
-  const [preview, setPreview] = useState<{ name: string; content: string } | null>(null);
+  const [preview, setPreview] = useState<{ name: string; path: string; content: string } | null>(null);
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const [resizing, setResizing] = useState(false);
   const filterRef = useRef<HTMLInputElement>(null);
@@ -89,7 +90,7 @@ const FileExplorer: React.FC = () => {
     // Try to preview any file — fileRead returns null for binary/large files
     (window.terminalAPI as any).fileRead(filePath, wslDistro).then((content: string | null) => {
       if (content !== null) {
-        setPreview({ name: fileName, content });
+        setPreview({ name: fileName, path: filePath, content });
       } else {
         openFileExternally(filePath);
       }
@@ -252,24 +253,24 @@ const FileExplorer: React.FC = () => {
         onChange={(e) => setFilter(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Escape') { setFilter(''); e.stopPropagation(); } }}
       />
-      <div className="file-explorer-list" style={preview ? { flex: '0 0 auto', maxHeight: '40%' } : { flex: 1 }}>
+      <div className="file-explorer-list" style={{ flex: 1 }}>
         {files.map((entry) => renderEntry(entry, 0))}
         {files.length === 0 && <div className="dir-panel-empty">No files</div>}
       </div>
-      {preview && (
-        <div className="file-preview">
-          <div className="file-preview-header">
-            <span className="file-preview-name">{preview.name}</span>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <button className="file-explorer-nav-btn" onClick={() => openFileExternally(
-                // Find the full path from the preview name
-                files.find((f) => f.name === preview.name)?.path || preview.name
-              )} title="Open in editor">&#8599;</button>
-              <button className="dir-panel-close" onClick={() => setPreview(null)}>&#10005;</button>
+      {preview && ReactDOM.createPortal(
+        <div className="file-preview-overlay">
+          <div className="file-preview-sidebar">
+            <div className="file-preview-header">
+              <span className="file-preview-name">{preview.name}</span>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button className="file-explorer-nav-btn" onClick={() => openFileExternally(preview.path)} title="Open in editor">&#8599;</button>
+                <button className="dir-panel-close" onClick={() => setPreview(null)}>&#10005;</button>
+              </div>
             </div>
+            <pre className="file-preview-content">{preview.content}</pre>
           </div>
-          <pre className="file-preview-content">{preview.content}</pre>
-        </div>
+        </div>,
+        document.body,
       )}
       {ctxMenu && (
         <div ref={ctxRef} className="context-menu" style={{ left: ctxMenu.x, top: ctxMenu.y, zIndex: 1000 }}>
@@ -317,24 +318,6 @@ const FileExplorer: React.FC = () => {
             setCtxMenu(null);
           }}>
             Copy Path
-          </button>
-          <div className="context-menu-separator" />
-          <button className="context-menu-item" onClick={() => {
-            // Open file/folder in a new tmax terminal
-            const dir = ctxMenu.entry.isDirectory ? ctxMenu.entry.path : ctxMenu.entry.path.replace(/[/\\][^/\\]+$/, '');
-            const store = useTerminalStore.getState();
-            store.createTerminal().then(() => {
-              // After creation, cd to the directory in the new terminal
-              const newId = store.focusedTerminalId;
-              if (newId) {
-                setTimeout(() => {
-                  window.terminalAPI.writePty(newId, `cd "${dir}"\r`);
-                }, 500);
-              }
-            });
-            setCtxMenu(null);
-          }}>
-            Open in Terminal
           </button>
         </div>
       )}
