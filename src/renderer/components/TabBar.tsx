@@ -80,19 +80,16 @@ const Tab: React.FC<TabProps> = ({
 
   const className = `tab${isActive ? ' active' : ''}${isDormant ? ' dormant' : ''}${isDetached ? ' detached' : ''}${isSelected ? ' selected' : ''}${needsAttention ? ' needs-attention' : ''}${isThinking ? ' ai-thinking' : ''}`;
 
+  const effectiveColor = groupColor || tabColor;
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    ...(tabColor
+    ...(effectiveColor
       ? isActive
-        ? { background: `${tabColor}cc`, color: '#fff', filter: 'brightness(1.2)' }
-        : { background: `${tabColor}33`, color: '#aaa' }
-      : groupColor
-        ? isActive
-          ? { background: `${groupColor}66`, color: '#fff' }
-          : { background: `${groupColor}22` }
-        : {}),
+        ? { background: `${effectiveColor}cc`, color: '#fff', filter: 'brightness(1.2)' }
+        : { background: `${effectiveColor}33` }
+      : {}),
   };
 
   const handleMouseDown = useCallback(

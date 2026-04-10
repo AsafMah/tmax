@@ -699,7 +699,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
   const groupId = useTerminalStore((s) => s.terminals.get(terminalId)?.groupId);
   const groupColor = useTerminalStore((s) => groupId ? s.tabGroups.get(groupId)?.color : undefined);
   const defaultTabColor = useTerminalStore((s) => (s.config as any)?.defaultTabColor);
-  const bgTint = tabColor || groupColor || defaultTabColor;
+  const bgTint = groupColor || tabColor || defaultTabColor;
 
   const handleSearch = useCallback((query: string, backward?: boolean) => {
     if (!searchAddonRef.current || !query) return;
