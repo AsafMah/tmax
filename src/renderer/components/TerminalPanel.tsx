@@ -395,7 +395,12 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
               const newTerminals = new Map(store.terminals);
               newTerminals.set(terminalId, { ...terminal, cwd: detectedDir });
               useTerminalStore.setState({ terminals: newTerminals });
-              store.addRecentDir(detectedDir);
+              // For WSL terminals, translate Linux path to UNC for the Dirs panel
+              if (terminal.wslDistro && detectedDir.startsWith('/')) {
+                store.addRecentDir(`\\\\wsl.localhost\\${terminal.wslDistro}${detectedDir.replace(/\//g, '\\')}`);
+              } else {
+                store.addRecentDir(detectedDir);
+              }
             }
             // Shell prompt appeared after AI session exited — pre-fill resume command
             if (aiSessionStartedRef.current && aiResumeCommandRef.current) {
@@ -475,7 +480,11 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
         const hasFileExtension = /\.\w{1,5}$/i.test(trimmed);
         if (looksLikePath && !hasFileExtension) {
           updates.cwd = trimmed;
-          store.addRecentDir(trimmed);
+          if (terminal.wslDistro && trimmed.startsWith('/')) {
+            store.addRecentDir(`\\\\wsl.localhost\\${terminal.wslDistro}${trimmed.replace(/\//g, '\\')}`);
+          } else {
+            store.addRecentDir(trimmed);
+          }
         }
         const newTerminals = new Map(store.terminals);
         newTerminals.set(terminalId, { ...terminal, ...updates });
