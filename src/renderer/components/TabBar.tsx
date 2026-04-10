@@ -86,9 +86,7 @@ const Tab: React.FC<TabProps> = ({
     transition,
     opacity: isDragging ? 0.5 : 1,
     ...(effectiveColor
-      ? isActive
-        ? { background: `${effectiveColor}cc`, color: '#fff', filter: 'brightness(1.2)' }
-        : { background: `${effectiveColor}33` }
+      ? { borderBottom: `3px solid ${effectiveColor}` }
       : {}),
   };
 

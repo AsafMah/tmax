@@ -258,7 +258,7 @@ const FileExplorer: React.FC = () => {
         {files.length === 0 && <div className="dir-panel-empty">No files</div>}
       </div>
       {preview && ReactDOM.createPortal(
-        <div className="file-preview-overlay">
+        <div className="file-preview-overlay" tabIndex={0} ref={(el) => el?.focus()} onKeyDown={(e) => { if (e.key === 'Escape') setPreview(null); }}>
           <div className="file-preview-sidebar">
             <div className="file-preview-header">
               <span className="file-preview-name">{preview.name}</span>
