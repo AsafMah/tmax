@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tmax - Multi-Terminal App for AI Coding</title>
+  <style>
+    :root {
+      --bg: #1e1e2e;
+      --bg2: #313244;
+      --fg: #cdd6f4;
+      --fg2: #a6adc8;
+      --blue: #89b4fa;
+      --green: #a6e3a1;
+      --red: #f38ba8;
+      --yellow: #f9e2af;
+      --purple: #cba6f7;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.6;
+    }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .hero {
+      text-align: center;
+      padding: 80px 20px 40px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .hero img { width: 96px; margin-bottom: 20px; }
+    .hero h1 { font-size: 48px; font-weight: 700; margin-bottom: 12px; }
+    .hero p { font-size: 20px; color: var(--fg2); max-width: 600px; margin: 0 auto 30px; }
+    .hero .badges { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 30px; }
+    .hero .badges img { height: 22px; }
+
+    .download-section {
+      background: var(--bg2);
+      border-radius: 16px;
+      padding: 32px;
+      max-width: 700px;
+      margin: 0 auto 60px;
+    }
+    .download-section h2 {
+      font-size: 24px;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .detected-os {
+      text-align: center;
+      color: var(--fg2);
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    .download-btn {
+      display: block;
+      width: 100%;
+      padding: 16px;
+      background: var(--blue);
+      color: var(--bg);
+      border: none;
+      border-radius: 10px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      margin-bottom: 12px;
+      transition: filter 0.15s;
+    }
+    .download-btn:hover { filter: brightness(1.1); text-decoration: none; color: var(--bg); }
+    .download-btn small { font-weight: 400; font-size: 13px; opacity: 0.8; }
+    .download-other {
+      text-align: center;
+      margin-top: 16px;
+      font-size: 14px;
+      color: var(--fg2);
+    }
+    .download-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .download-grid a {
+      display: block;
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--fg);
+      transition: background 0.15s;
+    }
+    .download-grid a:hover { background: rgba(255,255,255,0.1); text-decoration: none; }
+    .download-grid .os-icon { font-size: 20px; display: block; margin-bottom: 4px; }
+
+    .features {
+      max-width: 900px;
+      margin: 0 auto 60px;
+      padding: 0 20px;
+    }
+    .features h2 { font-size: 32px; text-align: center; margin-bottom: 40px; }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+    .feature-card {
+      background: var(--bg2);
+      border-radius: 12px;
+      padding: 24px;
+    }
+    .feature-card .icon { font-size: 28px; margin-bottom: 10px; }
+    .feature-card h3 { font-size: 16px; margin-bottom: 6px; }
+    .feature-card p { font-size: 13px; color: var(--fg2); }
+
+    .screenshot {
+      max-width: 900px;
+      margin: 0 auto 60px;
+      padding: 0 20px;
+      text-align: center;
+    }
+    .screenshot img {
+      max-width: 100%;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+
+    .shortcuts {
+      max-width: 700px;
+      margin: 0 auto 60px;
+      padding: 0 20px;
+    }
+    .shortcuts h2 { font-size: 32px; text-align: center; margin-bottom: 24px; }
+    .shortcuts table { width: 100%; border-collapse: collapse; }
+    .shortcuts th, .shortcuts td { padding: 8px 12px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .shortcuts th { color: var(--fg2); font-weight: 500; font-size: 13px; }
+    .shortcuts td { font-size: 14px; }
+    .shortcuts kbd {
+      background: var(--bg2);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: 'Cascadia Code', monospace;
+      font-size: 12px;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--fg2);
+      font-size: 13px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .footer a { color: var(--blue); }
+
+    .mac-note {
+      background: rgba(249,226,175,0.1);
+      border: 1px solid rgba(249,226,175,0.2);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: var(--yellow);
+      margin-top: 16px;
+      display: none;
+    }
+    .mac-note code {
+      background: rgba(0,0,0,0.3);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+
+<div class="hero">
+  <img src="https://raw.githubusercontent.com/InbarR/tmax/main/assets/icon.png" alt="tmax">
+  <h1>tmax</h1>
+  <p>A powerful multi-terminal app with tiling layouts, AI session management, and a keyboard-driven workflow.</p>
+  <div class="badges">
+    <img src="https://img.shields.io/badge/Windows-0078D6?logo=windows&logoColor=white" alt="Windows">
+    <img src="https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white" alt="macOS">
+    <img src="https://img.shields.io/badge/Linux-FCC624?logo=linux&logoColor=black" alt="Linux">
+    <img src="https://img.shields.io/github/stars/InbarR/tmax?style=flat&color=89b4fa" alt="Stars">
+    <img src="https://img.shields.io/github/v/release/InbarR/tmax?color=a6e3a1" alt="Version">
+  </div>
+</div>
+
+<div class="download-section" id="download">
+  <h2>Download</h2>
+  <p class="detected-os" id="detected-os">Detecting your platform...</p>
+  <a class="download-btn" id="primary-download" href="#">
+    Download for <span id="os-name">your platform</span>
+    <br><small id="os-detail"></small>
+  </a>
+  <div class="mac-note" id="mac-note">
+    macOS: If you see "tmax is damaged", run: <code>xattr -cr /Applications/tmax.app</code>
+  </div>
+  <div class="download-other">
+    <p>Other platforms:</p>
+    <div class="download-grid" id="other-downloads"></div>
+  </div>
+</div>
+
+<div class="screenshot">
+  <img src="https://raw.githubusercontent.com/InbarR/tmax/main/assets/screenshot.png" alt="tmax screenshot">
+</div>
+
+<div class="features">
+  <h2>Features</h2>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="icon">&#9638;</div>
+      <h3>Tiling Layouts</h3>
+      <p>Split terminals horizontally, vertically, or float them. Grid mode arranges everything automatically.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">&#10024;</div>
+      <h3>AI Session Management</h3>
+      <p>Monitor Claude Code and GitHub Copilot sessions. Resume, rename, and organize with lifecycle tabs.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">&#128193;</div>
+      <h3>File Explorer</h3>
+      <p>Browse files, preview code inline, navigate with breadcrumbs. Works with WSL filesystems.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">&#127912;</div>
+      <h3>Tab Groups</h3>
+      <p>Group related terminals with colors, collapsible headers, and drag between groups.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">&#9000;</div>
+      <h3>Keyboard-Driven</h3>
+      <p>Command palette, pane hints, fully customizable shortcuts. Works with Cmd on macOS.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">&#128039;</div>
+      <h3>WSL Integration</h3>
+      <p>Discover AI sessions from WSL distros, resume in the right environment.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">&#128196;</div>
+      <h3>Diff Review</h3>
+      <p>Built-in code diff overlay with file tree and inline annotations.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">&#127752;</div>
+      <h3>Appearance</h3>
+      <p>System font picker, Windows 11 Mica/Acrylic, 10+ themes, dark title bar.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">&#128260;</div>
+      <h3>Auto Updates</h3>
+      <p>Seamless updates on Windows, macOS, and Linux. See release notes before updating.</p>
+    </div>
+  </div>
+</div>
+
+<div class="shortcuts">
+  <h2>Key Shortcuts</h2>
+  <table>
+    <tr><th>Shortcut</th><th>Action</th></tr>
+    <tr><td><kbd>Ctrl+Shift+P</kbd></td><td>Command palette</td></tr>
+    <tr><td><kbd>Ctrl+Shift+N</kbd></td><td>New terminal</td></tr>
+    <tr><td><kbd>Ctrl+Alt+Arrow</kbd></td><td>Split in direction</td></tr>
+    <tr><td><kbd>Shift+Arrow</kbd></td><td>Move focus between panes</td></tr>
+    <tr><td><kbd>Ctrl+Shift+F</kbd></td><td>Toggle Focus / Grid mode</td></tr>
+    <tr><td><kbd>Ctrl+Shift+C</kbd></td><td>AI Sessions panel</td></tr>
+    <tr><td><kbd>Ctrl+Shift+X</kbd></td><td>File Explorer</td></tr>
+    <tr><td><kbd>Ctrl+Shift+K</kbd></td><td>Jump to AI prompt</td></tr>
+    <tr><td><kbd>Ctrl+Shift+B</kbd></td><td>Hide / show tab bar</td></tr>
+    <tr><td><kbd>Ctrl+,</kbd></td><td>Settings</td></tr>
+  </table>
+  <p style="text-align:center;color:var(--fg2);font-size:13px;margin-top:12px;">On macOS, Ctrl is replaced with Cmd (&#8984;). All shortcuts are customizable.</p>
+</div>
+
+<div class="footer">
+  <p>Open source &middot; <a href="https://github.com/InbarR/tmax">GitHub</a> &middot; MIT License</p>
+  <p style="margin-top:8px;">Built with Electron, React, TypeScript, xterm.js</p>
+</div>
+
+<script>
+const REPO = 'InbarR/tmax';
+const API = `https://api.github.com/repos/${REPO}/releases/latest`;
+
+// Detect platform
+function detectPlatform() {
+  const ua = navigator.userAgent.toLowerCase();
+  const platform = navigator.platform.toLowerCase();
+  if (platform.includes('mac') || ua.includes('mac')) {
+    // Detect Apple Silicon vs Intel
+    // Safari on Apple Silicon reports different GL renderer
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl');
+    const renderer = gl ? gl.getParameter(gl.RENDERER) : '';
+    const isArm = /apple m|apple gpu/i.test(renderer) || navigator.userAgent.includes('ARM');
+    return { os: 'macOS', arch: isArm ? 'arm64' : 'x64', icon: '&#63743;' };
+  }
+  if (platform.includes('linux') || ua.includes('linux')) {
+    return { os: 'Linux', arch: 'x64', icon: '&#128039;' };
+  }
+  // Check for ARM Windows
+  if (ua.includes('arm') || /WOW64|Win64/.test(navigator.userAgent) === false) {
+    return { os: 'Windows', arch: 'x64', icon: '&#128187;' };
+  }
+  return { os: 'Windows', arch: 'x64', icon: '&#128187;' };
+}
+
+const ALL_DOWNLOADS = [
+  { os: 'Windows', arch: 'x64', label: 'Windows (x64)', icon: '&#128187;', pattern: /Setup\.exe$|win32-x64.*\.zip$/ },
+  { os: 'Windows', arch: 'arm64', label: 'Windows (ARM)', icon: '&#128187;', pattern: /win32-arm64.*\.zip$/ },
+  { os: 'macOS', arch: 'arm64', label: 'macOS (Apple Silicon)', icon: '&#63743;', pattern: /arm64\.dmg$/ },
+  { os: 'macOS', arch: 'x64', label: 'macOS (Intel)', icon: '&#63743;', pattern: /(?<!arm64)\.dmg$|darwin-x64.*\.zip$/ },
+  { os: 'Linux', arch: 'x64', label: 'Linux (.deb)', icon: '&#128039;', pattern: /\.deb$/ },
+  { os: 'Linux', arch: 'x64-rpm', label: 'Linux (.rpm)', icon: '&#128039;', pattern: /\.rpm$/ },
+];
+
+async function loadRelease() {
+  const detected = detectPlatform();
+  document.getElementById('detected-os').textContent = `Detected: ${detected.os} (${detected.arch})`;
+
+  try {
+    const res = await fetch(API);
+    const data = await res.json();
+    const version = data.tag_name;
+    const assets = data.assets || [];
+
+    // Find primary download
+    const primary = ALL_DOWNLOADS.find(d => d.os === detected.os && d.arch === detected.arch);
+    const primaryAsset = primary ? assets.find(a => primary.pattern.test(a.name)) : null;
+
+    const btn = document.getElementById('primary-download');
+    const osName = document.getElementById('os-name');
+    const osDetail = document.getElementById('os-detail');
+
+    if (primaryAsset) {
+      btn.href = primaryAsset.browser_download_url;
+      osName.textContent = primary.label;
+      osDetail.textContent = `${version} · ${(primaryAsset.size / 1024 / 1024).toFixed(0)} MB`;
+    } else {
+      btn.href = data.html_url;
+      osName.textContent = detected.os;
+      osDetail.textContent = 'View all downloads';
+    }
+
+    // Show mac note
+    if (detected.os === 'macOS') {
+      document.getElementById('mac-note').style.display = 'block';
+    }
+
+    // Other downloads
+    const grid = document.getElementById('other-downloads');
+    for (const dl of ALL_DOWNLOADS) {
+      if (dl.os === detected.os && dl.arch === detected.arch) continue;
+      const asset = assets.find(a => dl.pattern.test(a.name));
+      if (asset) {
+        const a = document.createElement('a');
+        a.href = asset.browser_download_url;
+        a.innerHTML = `<span class="os-icon">${dl.icon}</span>${dl.label}`;
+        grid.appendChild(a);
+      }
+    }
+
+    // Add source option
+    const src = document.createElement('a');
+    src.href = `https://github.com/${REPO}`;
+    src.innerHTML = '<span class="os-icon">&#128736;</span>Build from source';
+    grid.appendChild(src);
+
+  } catch (e) {
+    const btn = document.getElementById('primary-download');
+    btn.href = `https://github.com/${REPO}/releases/latest`;
+    document.getElementById('os-name').textContent = 'your platform';
+    document.getElementById('os-detail').textContent = 'View releases on GitHub';
+  }
+}
+
+// Replace Ctrl with Cmd on macOS
+if (detectPlatform().os === 'macOS') {
+  document.querySelectorAll('kbd').forEach(kbd => {
+    kbd.textContent = kbd.textContent.replace(/Ctrl/g, '\u2318');
+  });
+}
+
+loadRelease();
+</script>
+
+</body>
+</html>
