@@ -151,9 +151,9 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
   const config = useTerminalStore((s) => s.config);
   const focusedTerminalId = useTerminalStore((s) => s.focusedTerminalId);
   const fontSize = useTerminalStore((s) => s.fontSize);
-  // Track overlay state to re-focus xterm when overlays close
+  // Track modal overlay state — sidebars (copilot, dirs, explorer) should NOT block terminal focus
   const anyOverlayOpen = useTerminalStore((s) =>
-    s.showCommandPalette || s.showSettings || s.showSwitcher || s.showShortcuts || s.showCopilotPanel || s.showDirPicker
+    s.showCommandPalette || s.showSettings || s.showSwitcher || s.showShortcuts
   );
   const aiResumeCommandRef = useRef<string>('');
   const aiSessionStartedRef = useRef(false);
@@ -179,8 +179,12 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
     if (prevFocused && prevFocused !== terminalId) {
       window.terminalAPI.writePty(prevFocused, '\x1b[O');
       window.terminalAPI.diagLog('renderer:focus-inject-out', { terminalId: prevFocused });
-      window.terminalAPI.writePty(terminalId, '\x1b[I');
-      window.terminalAPI.diagLog('renderer:focus-inject-in', { terminalId });
+      // Delay focus-in so xterm's native focus event settles first,
+      // avoiding duplicate cursor from double focus-in reports
+      requestAnimationFrame(() => {
+        window.terminalAPI.writePty(terminalId, '\x1b[I');
+        window.terminalAPI.diagLog('renderer:focus-inject-in', { terminalId });
+      });
     }
   }, [terminalId]);
 
@@ -292,15 +296,16 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
           return false;
         }
       }
-      // Ctrl+Enter / Shift+Enter: send win32-input-mode key events
+      // Ctrl+Enter: send win32-input-mode key event
       // Format: CSI Vk;Sc;Uc;Kd;Cs;Rc _ (VK_RETURN=13, ScanCode=28)
-      // ConPTY processes these when an app has enabled win32-input-mode
-      if (event.key === 'Enter' && (event.ctrlKey || event.shiftKey) && !event.altKey) {
-        const cs = (event.ctrlKey ? 8 : 0) | (event.shiftKey ? 16 : 0);
-        const uc = event.ctrlKey ? 10 : 13;
-        window.terminalAPI.writePty(terminalId, `\x1b[13;28;${uc};1;${cs};1_`);
+      if (event.key === 'Enter' && event.ctrlKey && !event.altKey) {
+        const cs = 8 | (event.shiftKey ? 16 : 0);
+        window.terminalAPI.writePty(terminalId, `\x1b[13;28;10;1;${cs};1_`);
         return false;
       }
+      // Shift+Enter: let xterm handle it naturally (sends \r to the PTY)
+      // Apps like Claude Code that support win32-input-mode will get the
+      // Shift modifier via ConPTY's built-in handling
       return true;
     });
 

@@ -84,7 +84,7 @@ const CommandPalette: React.FC = () => {
       { id: 'reportIssue', label: 'Report Issue', action: () => {
         const version = document.querySelector('.status-dim')?.textContent?.replace('v', '') || 'unknown';
         const platform = navigator.platform;
-        const body = encodeURIComponent(`**Version:** ${version}\n**Platform:** ${platform}\n\n**Description:**\n\n\n**Steps to reproduce:**\n1. \n\n**Expected behavior:**\n\n**Actual behavior:**\n`);
+        const body = encodeURIComponent(`**Version:** ${version}\n**Platform:** ${platform}\n\n**Description:**\n\n\n**Steps to reproduce:**\n1. \n\n**Expected behavior:**\n\n**Actual behavior:**\n\n---\n_Note: If you're signed into GitHub with an Enterprise Managed account, you may need to sign in with your personal GitHub account to submit this issue._`);
         window.open(`https://github.com/InbarR/tmax/issues/new?body=${body}`, '_blank');
       }},
       { id: 'editConfig', label: 'Open Settings JSON File', action: () => {
