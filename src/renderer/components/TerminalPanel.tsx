@@ -236,6 +236,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
       scrollback: termConfig?.scrollback ?? 5000,
       cursorStyle: termConfig?.cursorStyle ?? 'block',
       cursorBlink: termConfig?.cursorBlink ?? true,
+      cursorInactiveStyle: 'none',
       allowTransparency: bgOpacity < 1,
       allowProposedApi: true,
     });
@@ -575,20 +576,6 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
     });
     resizeObserver.observe(containerRef.current);
 
-    // Ctrl+mouse wheel zoom
-    const handleWheel = (e: WheelEvent) => {
-      if (e.ctrlKey) {
-        e.preventDefault();
-        const store = useTerminalStore.getState();
-        if (e.deltaY < 0) {
-          store.zoomIn();
-        } else {
-          store.zoomOut();
-        }
-      }
-    };
-    containerRef.current.addEventListener('wheel', handleWheel, { passive: false });
-
     // Right-click: copy if selection, paste if no selection
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
@@ -625,7 +612,6 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
         textareaEl.removeEventListener('focus', handleFocus);
         textareaEl.removeEventListener('blur', handleBlur);
       }
-      containerEl.removeEventListener('wheel', handleWheel);
       containerEl.removeEventListener('contextmenu', handleContextMenu, true);
       titleDisposable.dispose();
       unregisterTerminal(terminalId);

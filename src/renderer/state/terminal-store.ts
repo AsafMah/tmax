@@ -1383,6 +1383,16 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
     );
     if (neighbor) {
       set({ focusedTerminalId: neighbor });
+      // Immediately move DOM focus and send DEC focus sequences
+      // (the useEffect in TerminalPanel is async and causes a race)
+      const entry = getTerminalEntry(neighbor);
+      if (entry) {
+        entry.terminal.focus();
+        window.terminalAPI.writePty(focusedTerminalId, '\x1b[O');
+        requestAnimationFrame(() => {
+          window.terminalAPI.writePty(neighbor, '\x1b[I');
+        });
+      }
     }
   },
 

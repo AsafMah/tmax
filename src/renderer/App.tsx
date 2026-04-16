@@ -42,6 +42,7 @@ const App: React.FC = () => {
     handleDragStart,
     handleDragOver,
     handleDragEnd,
+    handleDragCancel,
     sensors,
   } = useDragTerminal();
 
@@ -172,6 +173,7 @@ const App: React.FC = () => {
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
     >
       <div className={`app-shell tab-bar-${tabBarPosition}`}>
         {!hideTabBar && tabBarPosition === 'top' && <TabBar />}

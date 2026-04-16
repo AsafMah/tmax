@@ -77,6 +77,7 @@ const DetachedApp: React.FC<DetachedAppProps> = ({ terminalId }) => {
         scrollback: (termConfig?.scrollback as number) ?? 5000,
         cursorStyle: (termConfig?.cursorStyle as 'block') ?? 'block',
         cursorBlink: (termConfig?.cursorBlink as boolean) ?? true,
+        cursorInactiveStyle: 'none',
         allowTransparency: bgOpacity < 1,
         allowProposedApi: true,
       });

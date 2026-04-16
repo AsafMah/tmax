@@ -106,11 +106,17 @@ export function useDragTerminal(): UseDragTerminalResult {
     store.setDragging(false);
   }, []);
 
+  const handleDragCancel = useCallback(() => {
+    setActiveId(null);
+    useTerminalStore.getState().setDragging(false);
+  }, []);
+
   return {
     activeId,
     handleDragStart,
     handleDragOver,
     handleDragEnd,
+    handleDragCancel,
     sensors,
   };
 }
