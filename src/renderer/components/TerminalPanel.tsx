@@ -197,10 +197,16 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
     diagRef.current.focusEventCount++;
     diagRef.current.lastFocusTime = Date.now();
     window.terminalAPI.diagLog('renderer:focus-gained', { terminalId });
-    // Always re-focus xterm textarea — the store won't trigger a re-focus
-    // if this panel is already the focused one (isFocused won't change)
+    // Re-focus xterm textarea — the store won't trigger a re-focus
+    // if this panel is already the focused one (isFocused won't change).
+    // Skip when textarea already has DOM focus: a redundant term.focus()
+    // in the same frame corrupts xterm's cursor-blink state and paints a
+    // stale cursor (#41).
     try {
-      terminalRef.current?.focus();
+      const textarea = containerRef.current?.querySelector('textarea');
+      if (!textarea || document.activeElement !== textarea) {
+        terminalRef.current?.focus();
+      }
     } catch { /* terminal may be disposed */ }
     // Ensure DEC focus reporting reaches the PTY even if xterm.js lost
     // its internal focus-reporting state (e.g. after a pane split/resize).
@@ -702,7 +708,19 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
   useEffect(() => {
     try {
       if (isFocused && !anyOverlayOpen && terminalRef.current) {
-        terminalRef.current.focus();
+        // Skip redundant focus() when xterm's textarea already has DOM focus —
+        // handleFocus() already called term.focus() synchronously on click.
+        // A second focus() in the same frame leaves xterm's cursor-blink state
+        // machine inconsistent and paints a stale cursor (#41).
+        const textarea = containerRef.current?.querySelector('textarea');
+        const alreadyFocused = textarea && document.activeElement === textarea;
+        if (!alreadyFocused) {
+          terminalRef.current.focus();
+          // Force a cursor-row redraw so any stale cursor glyph from the
+          // previous frame is cleared (#41).
+          const cursorY = terminalRef.current.buffer.active.cursorY;
+          try { terminalRef.current.refresh(cursorY, cursorY); } catch { /* ignore */ }
+        }
         // Immediately refit in case the container size changed (e.g. focus
         // mode shows this pane at full size while it was previously hidden at
         // its split-ratio size).  Using rAF so the DOM layout has settled.
