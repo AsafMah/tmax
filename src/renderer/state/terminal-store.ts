@@ -649,6 +649,10 @@ interface TerminalStore {
 
 // Cached session extras (layouts, etc.) so saveSession doesn't need async load
 let _sessionExtras: Record<string, unknown> = {};
+// Guard against early saveSession calls wiping persisted overrides before
+// restoreSession has populated the store. Flipped to true once restoreSession
+// has completed (or confirmed no saved session exists).
+let _sessionHydrated = false;
 
 // ── Store implementation ─────────────────────────────────────────────
 
@@ -1666,16 +1670,24 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
   },
 
   zoomIn: () => {
-    set((state) => ({ fontSize: Math.min(state.fontSize + 1, 32) }));
+    const { fontSize, config } = get();
+    const next = Math.min(fontSize + 1, 32);
+    set({ fontSize: next });
+    if (config) get().updateConfig({ terminal: { ...config.terminal, fontSize: next } } as any);
   },
 
   zoomOut: () => {
-    set((state) => ({ fontSize: Math.max(state.fontSize - 1, 8) }));
+    const { fontSize, config } = get();
+    const next = Math.max(fontSize - 1, 8);
+    set({ fontSize: next });
+    if (config) get().updateConfig({ terminal: { ...config.terminal, fontSize: next } } as any);
   },
 
   zoomReset: () => {
     const { config } = get();
-    set({ fontSize: config?.terminal?.fontSize ?? 14 });
+    const next = config?.terminal?.fontSize ?? 14;
+    set({ fontSize: next });
+    // zoomReset restores the config default; no need to write it back
   },
 
   saveNamedLayout: async (name: string) => {
@@ -1901,6 +1913,9 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
   },
 
   saveSession: async () => {
+    // Skip until the store has been hydrated from disk — otherwise an early
+    // save would overwrite persisted overrides with empty defaults.
+    if (!_sessionHydrated) return;
     const { terminals, layout, favoriteDirs, recentDirs, config, copilotSessions, claudeCodeSessions } = get();
 
     // For AI sessions, always derive the command from session type to avoid stale
@@ -1945,6 +1960,9 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
 
   restoreSession: async () => {
     const session = (await window.terminalAPI.loadSession()) as Record<string, unknown> | null;
+    // Flip the hydration flag whether or not a saved session exists —
+    // subsequent saveSession calls are safe either way.
+    _sessionHydrated = true;
     if (!session) return false;
     // Cache session extras (layouts, etc.) so saveSession doesn't need async load
     _sessionExtras = { ...session };
