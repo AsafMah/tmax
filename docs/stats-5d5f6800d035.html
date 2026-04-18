@@ -296,28 +296,34 @@ function renderTimeline() {
     .sort(([, a], [, b]) => (b[b.length - 1].count) - (a[a.length - 1].count))
     .slice(0, 5);
 
-  const pad = { top: 20, right: 16, bottom: 40, left: 40 };
+  const pad = { top: 20, right: 16, bottom: 50, left: 40 };
   const cw = W - pad.left - pad.right;
   const ch = H - pad.top - pad.bottom;
 
-  const allTs = [];
-  let maxVal = 0;
-  for (const [, points] of ranked) {
-    for (const p of points) {
-      allTs.push(p.t);
-      if (p.count > maxVal) maxVal = p.count;
-    }
-  }
+  // Collect the sorted list of all snapshot timestamps
+  const tsSet = new Set();
+  for (const [, points] of ranked) for (const p of points) tsSet.add(p.t);
+  const allTs = Array.from(tsSet).sort((a, b) => a - b);
   if (allTs.length === 0) {
     document.getElementById('timelineNote').textContent = 'No data points.';
     return;
   }
-  maxVal = Math.max(maxVal, 1);
 
-  const tMin = Math.min(...allTs);
-  const tMax = Math.max(...allTs);
-  const xOf = (t) => pad.left + (tMax === tMin ? cw / 2 : ((t - tMin) / (tMax - tMin)) * cw);
-  const yOf = (v) => pad.top + ch - (v / maxVal) * ch;
+  // For each timestamp, sum the contributions of the top-5 tags (stacked total)
+  const stackTotals = allTs.map((t) => {
+    let tot = 0;
+    for (const [, points] of ranked) {
+      const p = points.find((pp) => pp.t === t);
+      if (p) tot += p.count;
+    }
+    return tot;
+  });
+  const maxVal = Math.max(1, ...stackTotals);
+
+  // Bar geometry
+  const n = allTs.length;
+  const slot = cw / Math.max(n, 1);
+  const barW = Math.min(Math.max(slot * 0.7, 4), 50);
 
   // Gridlines
   ctx.strokeStyle = '#45475a'; ctx.lineWidth = 1; ctx.font = '10px system-ui'; ctx.fillStyle = '#a6adc8';
@@ -329,56 +335,55 @@ function renderTimeline() {
     ctx.textAlign = 'right'; ctx.fillText(String(v), pad.left - 6, y + 3);
   }
 
-  // Lines (plus dots for each point, so single-snapshot state is visible)
   const palette = ['#89b4fa', '#a6e3a1', '#f9e2af', '#f38ba8', '#cba6f7'];
-  ranked.forEach(([tag, points], idx) => {
-    const color = palette[idx % palette.length];
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    points.forEach((p, i) => {
-      const x = xOf(p.t), y = yOf(p.count);
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+
+  // Draw stacked columns, one per timestamp
+  allTs.forEach((t, i) => {
+    const x = pad.left + slot * (i + 0.5) - barW / 2;
+    let yOffset = 0; // cumulative pixels from bottom
+    let total = 0;
+    ranked.forEach(([tag, points], idx) => {
+      const p = points.find((pp) => pp.t === t);
+      if (!p || p.count === 0) return;
+      const h = (p.count / maxVal) * ch;
+      const y = pad.top + ch - yOffset - h;
+      ctx.fillStyle = palette[idx % palette.length];
+      ctx.fillRect(x, y, barW, h);
+      yOffset += h;
+      total += p.count;
     });
-    ctx.stroke();
-    // Dots
-    ctx.fillStyle = color;
-    points.forEach((p) => {
-      ctx.beginPath();
-      ctx.arc(xOf(p.t), yOf(p.count), 3, 0, Math.PI * 2);
-      ctx.fill();
-    });
+    // Total label above the column
+    if (total > 0) {
+      ctx.fillStyle = '#cdd6f4';
+      ctx.textAlign = 'center';
+      ctx.font = '10px system-ui';
+      ctx.fillText(String(total), x + barW / 2, pad.top + ch - yOffset - 4);
+    }
   });
 
-  // X-axis date labels (first, middle, last)
-  ctx.fillStyle = '#a6adc8'; ctx.textAlign = 'center';
-  const spanMs = tMax - tMin;
+  // X-axis labels
+  const spanMs = (allTs[allTs.length - 1] - allTs[0]) || 0;
   const fmtDate = (ts) => {
     const d = new Date(ts);
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
     const hh = String(d.getHours()).padStart(2, '0');
     const min = String(d.getMinutes()).padStart(2, '0');
-    // For short windows, show date+time down to minute; for longer, just date+hour
     if (spanMs < 24 * 3600 * 1000) return `${mm}/${dd} ${hh}:${min}`;
     return `${mm}/${dd} ${hh}:00`;
   };
-  const labelPoints = tMin === tMax ? [tMin] : [tMin, (tMin + tMax) / 2, tMax];
-  for (const t of labelPoints) ctx.fillText(fmtDate(t), xOf(t), pad.top + ch + 18);
-
-  // Label the latest count next to the last dot of each line
-  ctx.font = '10px system-ui';
-  ranked.forEach(([tag, points], idx) => {
-    if (points.length === 0) return;
-    const last = points[points.length - 1];
-    ctx.fillStyle = palette[idx % palette.length];
-    ctx.textAlign = 'left';
-    ctx.fillText(String(last.count), xOf(last.t) + 6, yOf(last.count) + 3);
+  ctx.fillStyle = '#a6adc8'; ctx.textAlign = 'center'; ctx.font = '10px system-ui';
+  // Show up to ~6 labels along the axis so they don't overlap
+  const labelStride = Math.max(1, Math.ceil(n / 6));
+  allTs.forEach((t, i) => {
+    if (i % labelStride !== 0 && i !== n - 1) return;
+    const x = pad.left + slot * (i + 0.5);
+    ctx.fillText(fmtDate(t), x, pad.top + ch + 14);
   });
 
   // Legend
   let lx = pad.left;
-  const ly = pad.top + ch + 32;
+  const ly = pad.top + ch + 34;
   ranked.forEach(([tag], idx) => {
     ctx.fillStyle = palette[idx % palette.length];
     ctx.fillRect(lx, ly - 8, 10, 10);
