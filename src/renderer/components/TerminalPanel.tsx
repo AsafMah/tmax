@@ -596,7 +596,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
         } catch {
           // Ignore resize errors during teardown
         }
-      }, 100);
+      }, 30);
     });
     resizeObserver.observe(containerRef.current);
 

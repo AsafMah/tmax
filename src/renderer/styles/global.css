@@ -488,6 +488,14 @@ html.transparency-active .input-dialog {
   position: relative;
   display: flex;
   flex-direction: column;
+  /* Isolate layout/paint: terminal updates don't trigger reflows of siblings */
+  contain: layout style;
+}
+
+/* Crisper terminal text on HiDPI displays — prevents subpixel fringing */
+.xterm {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .terminal-panel.focused {
