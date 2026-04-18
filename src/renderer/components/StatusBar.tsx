@@ -144,6 +144,13 @@ const StatusBar: React.FC = () => {
           >
             &#129302; Sessions
           </button>
+          <button
+            className="status-mode-btn"
+            onClick={() => useTerminalStore.getState().toggleWorktreePanel()}
+            title={formatKeyForPlatform("Git Worktrees (Ctrl+Shift+T)")}
+          >
+            &#127793; Worktrees
+          </button>
           {focused ? (
             <>
               <span className="status-indicator" />

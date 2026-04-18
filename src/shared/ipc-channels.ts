@@ -54,6 +54,11 @@ export const IPC = {
   // ── File explorer ──────────────────────────────────────────────────
   FILE_LIST: 'file:list',
   FILE_READ: 'file:read',
+  // ── Git worktree ────────────────────────────────────────────────────
+  GIT_LIST_WORKTREES: 'git:listWorktrees',
+  GIT_CREATE_WORKTREE: 'git:createWorktree',
+  GIT_DELETE_WORKTREE: 'git:deleteWorktree',
+  GIT_GET_BRANCHES: 'git:getBranches',
 } as const;
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];

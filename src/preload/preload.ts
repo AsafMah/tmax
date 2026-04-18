@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, clipboard } from 'electron';
 import { IPC } from '../shared/ipc-channels';
 import type { DiffMode, DiffResult, AnnotatedFile } from '../shared/diff-types';
+import type { RepoWorktrees } from '../shared/worktree-types';
 
 export interface PtyDiag {
   pid: number;
@@ -53,6 +54,11 @@ export interface TerminalAPI {
   // ── File explorer ────────────────────────────────────────────────
   fileList(dirPath: string, wslDistro?: string): Promise<{ name: string; isDirectory: boolean; path: string }[]>;
   fileRead(filePath: string, wslDistro?: string): Promise<string | null>;
+  // ── Git worktree ──────────────────────────────────────────────────
+  listWorktrees(cwd: string): Promise<RepoWorktrees>;
+  createWorktree(repoPath: string, branchName: string, baseBranch: string): Promise<{ success: boolean; worktreePath?: string; error?: string }>;
+  deleteWorktree(repoPath: string, worktreePath: string): Promise<{ success: boolean; error?: string }>;
+  getBranches(repoPath: string): Promise<string[]>;
 }
 
 const terminalAPI: TerminalAPI = {
@@ -342,6 +348,20 @@ const terminalAPI: TerminalAPI = {
 
   fileRead(filePath: string, wslDistro?: string) {
     return ipcRenderer.invoke(IPC.FILE_READ, filePath, wslDistro);
+  },
+
+  // ── Git worktree ──────────────────────────────────────────────────
+  listWorktrees(cwd: string) {
+    return ipcRenderer.invoke(IPC.GIT_LIST_WORKTREES, cwd);
+  },
+  createWorktree(repoPath: string, branchName: string, baseBranch: string) {
+    return ipcRenderer.invoke(IPC.GIT_CREATE_WORKTREE, repoPath, branchName, baseBranch);
+  },
+  deleteWorktree(repoPath: string, worktreePath: string) {
+    return ipcRenderer.invoke(IPC.GIT_DELETE_WORKTREE, repoPath, worktreePath);
+  },
+  getBranches(repoPath: string) {
+    return ipcRenderer.invoke(IPC.GIT_GET_BRANCHES, repoPath);
   },
 
 };

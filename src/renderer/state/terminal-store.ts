@@ -14,6 +14,7 @@ import type {
 } from './types';
 import type { CopilotSessionSummary } from '../../shared/copilot-types';
 import type { DiffMode } from '../../shared/diff-types';
+import type { RepoWorktrees } from '../../shared/worktree-types';
 import { getAllTerminals, getTerminalEntry } from '../terminal-registry';
 
 // Session IDs must be alphanumeric/dash/dot/underscore only (prevent shell injection)
@@ -525,6 +526,11 @@ interface TerminalStore {
   recentDirs: string[];
   showDirPicker: boolean;
   showFileExplorer: boolean;
+  // When set, FileExplorer consumes this path on next open then clears it.
+  fileExplorerTargetPath: string | null;
+  showWorktreePanel: boolean;
+  worktreeRepos: RepoWorktrees[];
+  worktreeLoading: boolean;
   tabMenuTerminalId: TerminalId | null;
   autoColorTabs: boolean;
   showCopilotPanel: boolean;
@@ -607,6 +613,11 @@ interface TerminalStore {
   cdToDir: (dir: string) => void;
   toggleDirPicker: () => void;
   toggleFileExplorer: () => void;
+  openFileExplorerAt: (path: string) => void;
+  toggleWorktreePanel: () => void;
+  loadWorktrees: () => Promise<void>;
+  createWorktree: (repoPath: string, branchName: string, baseBranch: string) => Promise<{ success: boolean; error?: string }>;
+  deleteWorktree: (repoPath: string, worktreePath: string) => Promise<{ success: boolean; error?: string }>;
   openTabMenu: (id?: TerminalId) => void;
   loadDirs: () => Promise<void>;
   saveDirs: () => Promise<void>;
@@ -653,6 +664,8 @@ let _sessionExtras: Record<string, unknown> = {};
 // restoreSession has populated the store. Flipped to true once restoreSession
 // has completed (or confirmed no saved session exists).
 let _sessionHydrated = false;
+// Monotonically increasing counter to detect stale loadWorktrees() calls
+let _loadWorktreesSeq = 0;
 
 // ── Store implementation ─────────────────────────────────────────────
 
@@ -672,6 +685,10 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
   showSettings: false,
   showDirPicker: false,
   showFileExplorer: false,
+  fileExplorerTargetPath: null,
+  showWorktreePanel: false,
+  worktreeRepos: [] as RepoWorktrees[],
+  worktreeLoading: false,
   autoColorTabs: true,
   showCopilotPanel: false,
   promptsDialogRequest: null,
@@ -1888,6 +1905,75 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
 
   toggleFileExplorer: () => {
     set((state) => ({ showFileExplorer: !state.showFileExplorer }));
+  },
+
+  openFileExplorerAt: (path: string) => {
+    // Toggle: if panel is already open, close it. Otherwise open at the path.
+    const { showFileExplorer } = get();
+    if (showFileExplorer) {
+      set({ showFileExplorer: false, fileExplorerTargetPath: null });
+    } else {
+      set({ showFileExplorer: true, fileExplorerTargetPath: path });
+    }
+  },
+
+  // ── Worktree panel actions ────────────────────────────────────────
+  toggleWorktreePanel: () => {
+    const wasShowing = get().showWorktreePanel;
+    set({ showWorktreePanel: !wasShowing });
+    if (!wasShowing) {
+      get().loadWorktrees();
+    }
+  },
+
+  loadWorktrees: async () => {
+    const seq = ++_loadWorktreesSeq;
+    const { favoriteDirs, recentDirs } = get();
+    const allDirs = [...new Set([...favoriteDirs, ...recentDirs])];
+    if (allDirs.length === 0) {
+      set({ worktreeRepos: [], worktreeLoading: false });
+      return;
+    }
+    set({ worktreeLoading: true });
+    const results = await Promise.allSettled(
+      allDirs.map((dir) => window.terminalAPI.listWorktrees(dir)),
+    );
+    if (seq !== _loadWorktreesSeq) return;
+    const oldRepos = get().worktreeRepos;
+    const oldExpandState = new Map(oldRepos.map((r) => [r.gitRoot, r.isExpanded]));
+    const seenRoots = new Set<string>();
+    const repos: RepoWorktrees[] = [];
+    for (const result of results) {
+      if (result.status !== 'fulfilled') continue;
+      const repo = result.value as RepoWorktrees;
+      if (!repo.gitRoot || seenRoots.has(repo.gitRoot)) continue;
+      seenRoots.add(repo.gitRoot);
+      // Only show repos that actually have worktrees. Non-git dirs, missing
+      // dirs, or repos with spawn errors are silently skipped — the panel
+      // shouldn't surface errors for dirs the user didn't explicitly target.
+      if (repo.worktrees.length > 0) {
+        const prevExpanded = oldExpandState.get(repo.gitRoot);
+        repo.isExpanded = prevExpanded !== undefined ? prevExpanded : true;
+        repos.push(repo);
+      }
+    }
+    set({ worktreeRepos: repos, worktreeLoading: false });
+  },
+
+  createWorktree: async (repoPath: string, branchName: string, baseBranch: string) => {
+    const result = await window.terminalAPI.createWorktree(repoPath, branchName, baseBranch);
+    if (result.success) {
+      await get().loadWorktrees();
+    }
+    return result;
+  },
+
+  deleteWorktree: async (repoPath: string, worktreePath: string) => {
+    const result = await window.terminalAPI.deleteWorktree(repoPath, worktreePath);
+    if (result.success) {
+      await get().loadWorktrees();
+    }
+    return result;
   },
 
   openTabMenu: (id?: TerminalId) => {

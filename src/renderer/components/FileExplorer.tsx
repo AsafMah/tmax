@@ -46,6 +46,17 @@ const FileExplorer: React.FC = () => {
     if (terminalCwd) setBrowsePath(terminalCwd);
   }, [terminalCwd]);
 
+  // Consume an external target path (e.g. from Worktree Panel "open in explorer")
+  const targetPath = useTerminalStore((s) => s.fileExplorerTargetPath);
+  useEffect(() => {
+    if (!targetPath) return;
+    setBrowsePath(targetPath);
+    setExpanded({});
+    setChildren({});
+    setFilter('');
+    useTerminalStore.setState({ fileExplorerTargetPath: null });
+  }, [targetPath]);
+
   const navigateTo = useCallback((dir: string) => {
     setBrowsePath(dir);
     setExpanded({});

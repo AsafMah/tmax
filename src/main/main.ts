@@ -16,6 +16,7 @@ import { WslSessionManager } from './wsl-session-manager';
 import { VersionChecker } from './version-checker';
 import { initDiagLogger, getDiagLogPath, diagLog } from './diag-logger';
 import { GitDiffService, resolveGitRoot } from './git-diff-service';
+import { listWorktrees, createWorktree, deleteWorktree, getBranches } from './git-worktree-service';
 import type { DiffMode } from '../shared/diff-types';
 
 // Handle Squirrel.Windows lifecycle events (install, update, uninstall)
@@ -633,6 +634,20 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC.DIFF_GET_ANNOTATED_FILE, async (_event, cwd: string, filePath: string, mode: DiffMode) => {
     return diffService.getAnnotatedFile(cwd, filePath, mode);
+  });
+
+  // ── Git worktree IPC ────────────────────────────────────────────────
+  ipcMain.handle(IPC.GIT_LIST_WORKTREES, async (_event, cwd: string) => {
+    return listWorktrees(cwd);
+  });
+  ipcMain.handle(IPC.GIT_CREATE_WORKTREE, async (_event, repoPath: string, branchName: string, baseBranch: string) => {
+    return createWorktree(repoPath, branchName, baseBranch);
+  });
+  ipcMain.handle(IPC.GIT_DELETE_WORKTREE, async (_event, repoPath: string, worktreePath: string) => {
+    return deleteWorktree(repoPath, worktreePath);
+  });
+  ipcMain.handle(IPC.GIT_GET_BRANCHES, async (_event, repoPath: string) => {
+    return getBranches(repoPath);
   });
 
   // ── File explorer IPC ──────────────────────────────────────────────
