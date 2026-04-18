@@ -61,10 +61,10 @@
 </div>
 
 <div class="chart-section">
-  <div class="chart-title">Downloads over time (hourly snapshots)</div>
+  <div class="chart-title">Downloads over time</div>
   <div style="display:flex;gap:6px;margin-bottom:10px;">
     <button class="filter-btn active" id="timelineMode-cumulative">Cumulative</button>
-    <button class="filter-btn" id="timelineMode-delta">New per hour</button>
+    <button class="filter-btn" id="timelineMode-delta">New per interval</button>
   </div>
   <div class="chart-container"><canvas id="timelineChart"></canvas></div>
   <div style="color:var(--dim);font-size:12px;margin-top:8px;" id="timelineNote">Loading...</div>
@@ -242,7 +242,7 @@ async function loadTimeline() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     if (!data.snapshots || data.snapshots.length === 0) {
-      document.getElementById('timelineNote').textContent = 'No snapshots yet. The hourly GitHub Action will start collecting data.';
+      document.getElementById('timelineNote').textContent = 'No snapshots yet. The scheduled GitHub Action will start collecting data.';
       return;
     }
     timelineHistory = data.snapshots;
@@ -372,7 +372,7 @@ function renderTimeline() {
   });
 
   const modeLabel = timelineMode === 'cumulative' ? 'showing cumulative downloads' : 'showing new downloads per interval';
-  const hintIfSingle = timelineHistory.length === 1 ? ' - need 2+ snapshots to draw lines; next hourly cron fills this in.' : '';
+  const hintIfSingle = timelineHistory.length === 1 ? ' - need 2+ snapshots to draw lines; next scheduled run fills this in.' : '';
   document.getElementById('timelineNote').textContent = `${timelineHistory.length} snapshot(s), ${modeLabel}. Top 5 releases.${hintIfSingle}`;
 }
 
