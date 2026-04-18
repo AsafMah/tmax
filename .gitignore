@@ -14,6 +14,13 @@ AGENTS.md
 _swap.cmd
 _swap_now.cmd
 _swap_helper.cmd
+_restart.cmd
+
+# Release build artifacts (used as input to `gh release create --notes-file`)
+release-notes-v*.md
+
+# Personal scratch / drafts
+geektime-post.md
 
 # Misc
 excalidraw.log

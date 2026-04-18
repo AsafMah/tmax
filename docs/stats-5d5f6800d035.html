@@ -233,6 +233,154 @@ function renderChart(releases) {
 let allData = [];
 let activeFilter = 'all';
 
+let timelineMode = 'cumulative';
+let timelineHistory = null;
+
+async function loadTimeline() {
+  try {
+    const resp = await fetch('download-history.json', { cache: 'no-store' });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    if (!data.snapshots || data.snapshots.length === 0) {
+      document.getElementById('timelineNote').textContent = 'No snapshots yet. The hourly GitHub Action will start collecting data.';
+      return;
+    }
+    timelineHistory = data.snapshots;
+    renderTimeline();
+  } catch (err) {
+    document.getElementById('timelineNote').textContent = 'Could not load history: ' + err.message;
+  }
+}
+
+function renderTimeline() {
+  if (!timelineHistory) return;
+  const canvas = document.getElementById('timelineChart');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = rect.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Sum downloads across all assets (excluding RELEASES files) per snapshot per tag
+  const series = new Map(); // tag -> [{t, count}]
+  for (const snap of timelineHistory) {
+    const t = new Date(snap.t).getTime();
+    for (const [tag, assets] of Object.entries(snap.releases)) {
+      let count = 0;
+      for (const [name, n] of Object.entries(assets)) {
+        if (EXCLUDED.has(name) || name.startsWith('RELEASES')) continue;
+        count += n;
+      }
+      if (!series.has(tag)) series.set(tag, []);
+      series.get(tag).push({ t, count });
+    }
+  }
+
+  // If delta mode, convert cumulative to per-snapshot delta (new downloads per interval)
+  if (timelineMode === 'delta') {
+    for (const [tag, points] of series) {
+      const deltas = [];
+      for (let i = 0; i < points.length; i++) {
+        const prev = i === 0 ? 0 : points[i - 1].count;
+        deltas.push({ t: points[i].t, count: Math.max(0, points[i].count - prev) });
+      }
+      series.set(tag, deltas);
+    }
+  }
+
+  // Keep only the 5 most-downloaded tags (by latest snapshot) for clarity
+  const ranked = Array.from(series.entries())
+    .sort(([, a], [, b]) => (b[b.length - 1].count) - (a[a.length - 1].count))
+    .slice(0, 5);
+
+  const pad = { top: 20, right: 16, bottom: 40, left: 40 };
+  const cw = W - pad.left - pad.right;
+  const ch = H - pad.top - pad.bottom;
+
+  const allTs = [];
+  let maxVal = 0;
+  for (const [, points] of ranked) {
+    for (const p of points) {
+      allTs.push(p.t);
+      if (p.count > maxVal) maxVal = p.count;
+    }
+  }
+  if (allTs.length === 0) {
+    document.getElementById('timelineNote').textContent = 'No data points.';
+    return;
+  }
+  maxVal = Math.max(maxVal, 1);
+
+  const tMin = Math.min(...allTs);
+  const tMax = Math.max(...allTs);
+  const xOf = (t) => pad.left + (tMax === tMin ? cw / 2 : ((t - tMin) / (tMax - tMin)) * cw);
+  const yOf = (v) => pad.top + ch - (v / maxVal) * ch;
+
+  // Gridlines
+  ctx.strokeStyle = '#45475a'; ctx.lineWidth = 1; ctx.font = '10px system-ui'; ctx.fillStyle = '#a6adc8';
+  const gridLines = 4;
+  for (let i = 0; i <= gridLines; i++) {
+    const y = pad.top + (ch * i / gridLines);
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.globalAlpha = 0.3; ctx.stroke(); ctx.globalAlpha = 1;
+    const v = Math.round(maxVal * (1 - i / gridLines));
+    ctx.textAlign = 'right'; ctx.fillText(String(v), pad.left - 6, y + 3);
+  }
+
+  // Lines
+  const palette = ['#89b4fa', '#a6e3a1', '#f9e2af', '#f38ba8', '#cba6f7'];
+  ranked.forEach(([tag, points], idx) => {
+    ctx.strokeStyle = palette[idx % palette.length];
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    points.forEach((p, i) => {
+      const x = xOf(p.t), y = yOf(p.count);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  });
+
+  // X-axis date labels (first, middle, last)
+  ctx.fillStyle = '#a6adc8'; ctx.textAlign = 'center';
+  const fmtDate = (ts) => {
+    const d = new Date(ts);
+    return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:00`;
+  };
+  const labelPoints = tMin === tMax ? [tMin] : [tMin, (tMin + tMax) / 2, tMax];
+  for (const t of labelPoints) ctx.fillText(fmtDate(t), xOf(t), pad.top + ch + 18);
+
+  // Legend
+  let lx = pad.left;
+  const ly = pad.top + ch + 32;
+  ranked.forEach(([tag], idx) => {
+    ctx.fillStyle = palette[idx % palette.length];
+    ctx.fillRect(lx, ly - 8, 10, 10);
+    ctx.fillStyle = '#cdd6f4';
+    ctx.textAlign = 'left';
+    ctx.fillText(tag, lx + 14, ly);
+    lx += ctx.measureText(tag).width + 30;
+  });
+
+  document.getElementById('timelineNote').textContent = `${timelineHistory.length} snapshot(s), ${timelineMode === 'cumulative' ? 'showing cumulative downloads' : 'showing new downloads per interval'}. Top 5 releases.`;
+}
+
+document.getElementById('timelineMode-cumulative').addEventListener('click', () => {
+  timelineMode = 'cumulative';
+  document.getElementById('timelineMode-cumulative').classList.add('active');
+  document.getElementById('timelineMode-delta').classList.remove('active');
+  renderTimeline();
+});
+document.getElementById('timelineMode-delta').addEventListener('click', () => {
+  timelineMode = 'delta';
+  document.getElementById('timelineMode-delta').classList.add('active');
+  document.getElementById('timelineMode-cumulative').classList.remove('active');
+  renderTimeline();
+});
+
+loadTimeline();
+
 async function load() {
   const resp = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=30`);
   const releases = await resp.json();

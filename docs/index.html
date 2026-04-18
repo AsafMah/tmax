@@ -657,8 +657,10 @@ function renderMarkdown(md) {
     .replace(/(^|[^"'>])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>')
     .replace(/^- (.+)$/gm, '<li>$1</li>')
     .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
-    .replace(/\n\n/g, '<br><br>')
-    .replace(/\n/g, '\n');
+    // Skip `\n\n -> <br><br>` — block elements (h2, h3, ul) already have
+    // their own spacing. Inserting extra <br><br> between them creates a
+    // visible gap between "Features" heading and its list.
+    ;
 }
 
 // Replace Ctrl with Cmd on macOS
