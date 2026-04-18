@@ -33,3 +33,5 @@ Thanks to everyone who contributed:
 - @omer91se - session persistence, pane stability fixes, perf improvements, macOS packaging
 - @m-tantan - git worktree panel feature, tab close buttons toggle
 - @yoziv - HTML clipboard paste feature
+
+**Full Changelog**: https://github.com/InbarR/tmax/compare/v1.5.1...v1.5.2
