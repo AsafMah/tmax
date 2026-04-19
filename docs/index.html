@@ -572,8 +572,15 @@ async function loadRelease() {
   try {
     const res = await fetch(API);
     const data = await res.json();
+    // GitHub API returns {message: "..."} on rate limits / errors instead of a
+    // release object. Guard against missing fields so we never set
+    // href=undefined (which coerces to the string "undefined").
+    if (!res.ok || !data.tag_name || !Array.isArray(data.assets)) {
+      throw new Error(data.message || `HTTP ${res.status}`);
+    }
     const version = data.tag_name;
-    const assets = data.assets || [];
+    const assets = data.assets;
+    const releasesUrl = data.html_url || `https://github.com/${REPO}/releases/latest`;
 
     // Find primary download
     const primary = ALL_DOWNLOADS.find(d => d.os === detected.os && d.arch === detected.arch);
@@ -583,13 +590,13 @@ async function loadRelease() {
     const osName = document.getElementById('os-name');
     const osDetail = document.getElementById('os-detail');
 
-    if (primaryAsset) {
+    if (primaryAsset && primaryAsset.browser_download_url) {
       btn.href = primaryAsset.browser_download_url;
       osName.textContent = primary.label;
       const releaseDate = new Date(data.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       osDetail.textContent = `${version} · ${(primaryAsset.size / 1024 / 1024).toFixed(0)} MB · ${releaseDate}`;
     } else {
-      btn.href = data.html_url;
+      btn.href = releasesUrl;
       osName.textContent = detected.os;
       osDetail.textContent = 'View all downloads';
     }
