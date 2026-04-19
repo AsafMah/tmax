@@ -152,7 +152,17 @@ Right-click any tab for:
 
 Download the latest version from the [Releases page](https://github.com/InbarR/tmax/releases). Available for Windows (.exe installer + portable .zip), macOS (.dmg for Apple Silicon and Intel), and Linux (.deb, .rpm).
 
-> **macOS:** If you see _"tmax is damaged and can't be opened"_, run: `xattr -cr /Applications/tmax.app`
+### Running on macOS
+
+macOS requires apps to be signed with an Apple Developer certificate (which costs $99/year). Since I'm not planning to pay that evil company, you may see _"tmax is damaged and can't be opened"_ on first launch.
+
+To bypass it, run:
+
+```bash
+xattr -cr /Applications/tmax.app
+```
+
+This removes the "downloaded from the internet" flag, so macOS skips the security check that would otherwise block the app because it isn't signed.
 
 ## Building from Source
 
