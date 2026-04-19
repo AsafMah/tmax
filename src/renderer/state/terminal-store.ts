@@ -167,13 +167,13 @@ export const TAB_COLORS = [
   { name: 'Green', value: '#7FBA00' },
   { name: 'Blue', value: '#00A4EF' },
   { name: 'Yellow', value: '#FFB900' },
-  // Extended palette
-  { name: 'Purple', value: '#aa44ff' },
-  { name: 'Cyan', value: '#00dddd' },
-  { name: 'Pink', value: '#ff44aa' },
-  { name: 'Orange', value: '#ff8800' },
-  { name: 'Gray', value: '#888888' },
-  { name: 'Black', value: '#333333' },
+  // Extended palette - Fluent UI tones so they sit next to the MS logo colors without clashing
+  { name: 'Purple', value: '#6264A7' },
+  { name: 'Teal', value: '#00B7C3' },
+  { name: 'Magenta', value: '#C239B3' },
+  { name: 'Orange', value: '#D83B01' },
+  { name: 'Gray', value: '#737373' },
+  { name: 'Dark', value: '#323130' },
 ];
 
 // ── Theme → CSS variable sync ────────────────────────────────────────

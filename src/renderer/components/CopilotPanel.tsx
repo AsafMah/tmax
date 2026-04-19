@@ -59,9 +59,15 @@ function getSubtitle(s: CopilotSessionSummary): string | null {
   return null;
 }
 
-function sortSessions(sessions: CopilotSessionSummary[]): CopilotSessionSummary[] {
+function sortSessions(
+  sessions: CopilotSessionSummary[],
+  openSessionIds: Set<string>,
+): CopilotSessionSummary[] {
   return [...sessions].sort((a, b) => {
-    // Sort by last activity time, newest first
+    // Open-in-tmax sessions first, then by last activity time (newest first)
+    const aOpen = openSessionIds.has(a.id) ? 1 : 0;
+    const bOpen = openSessionIds.has(b.id) ? 1 : 0;
+    if (aOpen !== bOpen) return bOpen - aOpen;
     return (b.lastActivityTime || 0) - (a.lastActivityTime || 0);
   });
 }
@@ -90,6 +96,20 @@ const CopilotPanel: React.FC = () => {
     }
     return ids;
   }, [terminals]);
+
+  // Map AI session id -> pane color so list items can mirror the pane's color
+  const tabGroups = useTerminalStore((s) => s.tabGroups);
+  const defaultTabColor = useTerminalStore((s) => (s.config as any)?.defaultTabColor);
+  const sessionColors = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const [, t] of terminals) {
+      if (!t.aiSessionId) continue;
+      const groupColor = t.groupId ? tabGroups.get(t.groupId)?.color : undefined;
+      const color = groupColor || t.tabColor || defaultTabColor;
+      if (color) m.set(t.aiSessionId, color);
+    }
+    return m;
+  }, [terminals, tabGroups, defaultTabColor]);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
@@ -173,8 +193,8 @@ const CopilotPanel: React.FC = () => {
     const deduped = Array.from(byId.values());
     const lifecycleFiltered = deduped.filter((s) => getSessionLifecycle(s) === lifecycleTab);
 
-    return sortSessions(lifecycleFiltered);
-  }, [copilotSessions, claudeCodeSessions, query, filterTab, showRunningOnly, summaryOverrides, lifecycleTab, getSessionLifecycle]);
+    return sortSessions(lifecycleFiltered, openSessionIds);
+  }, [copilotSessions, claudeCodeSessions, query, filterTab, showRunningOnly, summaryOverrides, lifecycleTab, getSessionLifecycle, openSessionIds]);
 
   // Lifecycle counts (for tab badges) — computed from all sessions regardless of provider/running filter
   const lifecycleCounts = useMemo(() => {
@@ -559,10 +579,15 @@ const CopilotPanel: React.FC = () => {
           const isOpen = openSessionIds.has(session.id);
           const time = relativeTime(session.lastActivityTime);
           const hasStats = session.messageCount > 0 || session.toolCallCount > 0;
+          const paneColor = sessionColors.get(session.id);
+          // Left accent border mirrors the pane's color so you can match
+          // sessions with their open pane at a glance.
+          const itemStyle = paneColor ? { borderLeft: `3px solid ${paneColor}` } : undefined;
 
           return (
             <div
               key={`${session.provider}-${session.id}`}
+              style={itemStyle}
               className={`ai-session-item${index === selectedIndex ? ' selected' : ''}${selectedSessionIds.has(session.id) ? ' multi-selected' : ''}${active ? ' active' : ''}`}
               onClick={(e) => {
                 setSelectedIndex(index);

@@ -873,7 +873,10 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
         </div>
       )}
       {title && (
-        <div className="terminal-pane-title">
+        <div
+          className="terminal-pane-title"
+          style={bgTint ? { background: bgTint + (isFocused ? '66' : '33') } : undefined}
+        >
           <div
             className="status-dot-container"
             onClick={(e) => {

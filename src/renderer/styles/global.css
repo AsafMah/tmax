@@ -604,10 +604,11 @@ html.transparency-active .input-dialog {
   opacity: 1;
 }
 
+/* Background color comes from the pane's tab color (set inline in
+   TerminalPanel.tsx) with a higher alpha when focused. */
 .terminal-panel.focused .terminal-pane-title {
-  background: rgba(166, 227, 161, 0.3);
-  border-bottom-color: rgba(166, 227, 161, 0.4);
   opacity: 1;
+  border-bottom-color: rgba(255, 255, 255, 0.15);
 }
 
 .terminal-diff-btn {
