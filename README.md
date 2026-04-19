@@ -127,7 +127,11 @@ Download the latest version from the [Releases page](https://github.com/InbarR/t
 
 tmax is an independent open-source project and isn't code-signed (certificates cost $300-600/year on Windows and $99/year on macOS). Your browser and operating system may warn you about the download. All of these warnings are cosmetic - nothing is wrong with the file itself. Here's how to get past each one.
 
-**Windows: "isn't commonly downloaded" (Edge / Chrome)**
+---
+
+#### 🪟 Windows
+
+**"isn't commonly downloaded" (Edge / Chrome)**
 
 ![Edge SmartScreen warning](docs/screenshots/download-warn-edge.png)
 
@@ -138,15 +142,21 @@ Your browser may silently pause the download and show the message above, or quie
 This is [Microsoft SmartScreen's reputation filter](https://learn.microsoft.com/en-us/windows/security/operating-system-security/virus-and-threat-protection/microsoft-defender-smartscreen/) - new / niche installers trigger it regardless of content.
 
 To allow the download:
-1. In your browser's downloads list, click the **⋯** menu next to the paused file.
-2. Click **Keep** (Edge) or **Keep dangerous file** (Chrome).
-3. If the option is hidden, click **See more** to expand.
+1. In the download warning, click the **⋯** menu and choose **Keep**. Edge then shows a second dialog:
 
-**Windows: "Windows protected your PC" on first launch**
+   ![Edge Keep confirmation](docs/screenshots/download-warn-edge-expanded.png)
+
+2. Click the **dropdown arrow** next to the red **Delete** button and choose **Keep anyway**.
+
+**"Windows protected your PC" on first launch**
 
 After installing, the first time you run tmax you'll see a blue "Windows protected your PC" dialog from SmartScreen. Click **More info** at the top, then **Run anyway** at the bottom.
 
-**macOS: "tmax is damaged and can't be opened"**
+---
+
+#### 🍎 macOS
+
+**"tmax is damaged and can't be opened"**
 
 ![macOS damaged warning](docs/screenshots/download-warn-macos.png)
 
@@ -159,6 +169,8 @@ xattr -cr /Applications/tmax.app
 This clears the quarantine extended attribute so macOS skips the signature check. Open tmax normally afterwards.
 
 If you installed to a different location, adjust the path (e.g. `~/Applications/tmax.app`).
+
+---
 
 ## Building from Source
 
