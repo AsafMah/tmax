@@ -26,7 +26,10 @@ const STATUS_LABELS: Record<CopilotSessionStatus, string> = {
 };
 
 const MAX_REPO_ACCENT_COLORS = 8;
-const REPO_ACCENT_COLORS = TAB_COLORS.slice(0, MAX_REPO_ACCENT_COLORS).map((color) => color.value);
+const DEFAULT_REPO_ACCENT = '#89b4fa';
+const REPO_ACCENT_COLORS = TAB_COLORS
+  .slice(0, Math.min(MAX_REPO_ACCENT_COLORS, TAB_COLORS.length))
+  .map((color) => color.value);
 // A small prime multiplier keeps the deterministic repo-color hash stable while
 // spreading similar repo names across the accent palette.
 const REPO_COLOR_HASH_MULTIPLIER = 31;
@@ -92,11 +95,12 @@ function getRepoGroupInfo(s: CopilotSessionSummary): { key: string; label: strin
 }
 
 function getRepoAccentColor(key: string): string {
+  if (!key) return REPO_ACCENT_COLORS[0] || DEFAULT_REPO_ACCENT;
   let hash = 0;
   for (let i = 0; i < key.length; i += 1) {
     hash = (hash * REPO_COLOR_HASH_MULTIPLIER + key.charCodeAt(i)) >>> 0;
   }
-  return REPO_ACCENT_COLORS[hash % REPO_ACCENT_COLORS.length];
+  return REPO_ACCENT_COLORS[hash % REPO_ACCENT_COLORS.length] || DEFAULT_REPO_ACCENT;
 }
 
 function sortSessions(
