@@ -71,7 +71,7 @@ function getRepoGroupInfo(s: CopilotSessionSummary): { key: string; label: strin
 
   const label = shortPath(source);
   return {
-    key: label.toLowerCase(),
+    key: source.replace(/[\\/]+$/, '').replace(/\\/g, '/').toLowerCase(),
     label,
     title: source,
   };
@@ -625,6 +625,7 @@ const CopilotPanel: React.FC = () => {
               const active = isActiveStatus(session.status);
               const isOpen = openSessionIds.has(session.id);
               const time = relativeTime(session.lastActivityTime);
+              const showCwd = !!session.cwd && session.cwd !== group.title;
               const hasStats = session.messageCount > 0 || session.toolCallCount > 0;
               const paneColor = sessionColors.get(session.id);
               // Left accent border mirrors the pane's color so you can match
@@ -690,7 +691,7 @@ const CopilotPanel: React.FC = () => {
                     {subtitle && (
                       <div className="ai-session-subtitle">{subtitle}</div>
                     )}
-                    {session.cwd && (
+                    {showCwd && (
                       <div className="ai-session-cwd" title={session.cwd}>{session.cwd}</div>
                     )}
                     {active && (
