@@ -25,7 +25,10 @@ const STATUS_LABELS: Record<CopilotSessionStatus, string> = {
   waitingForUser: 'Waiting for input',
 };
 
-const REPO_ACCENT_COLORS = TAB_COLORS.slice(0, 8).map((color) => color.value);
+const MAX_REPO_ACCENT_COLORS = 8;
+const REPO_ACCENT_COLORS = TAB_COLORS.slice(0, MAX_REPO_ACCENT_COLORS).map((color) => color.value);
+// A small prime multiplier keeps the deterministic repo-color hash stable while
+// spreading similar repo names across the accent palette.
 const REPO_COLOR_HASH_MULTIPLIER = 31;
 
 type FilterTab = 'all' | 'copilot' | 'claude-code';
