@@ -3051,6 +3051,41 @@ select.settings-input {
   font-weight: 500;
 }
 
+.ai-session-group + .ai-session-group {
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.ai-session-group-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px 5px;
+  background: color-mix(in srgb, var(--bg-primary) 92%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.ai-session-group-name {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.35px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai-session-group-count {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--text-secondary);
+  opacity: 0.75;
+}
+
 /* Session card */
 .ai-session-item {
   display: flex;
@@ -3856,4 +3891,3 @@ select.settings-input {
   gap: 8px;
   margin-top: 4px;
 }
-
