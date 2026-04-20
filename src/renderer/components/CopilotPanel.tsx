@@ -26,6 +26,7 @@ const STATUS_LABELS: Record<CopilotSessionStatus, string> = {
 };
 
 const REPO_ACCENT_COLORS = TAB_COLORS.slice(0, 8).map((color) => color.value);
+const REPO_COLOR_HASH_MULTIPLIER = 31;
 
 type FilterTab = 'all' | 'copilot' | 'claude-code';
 type LifecycleTab = 'active' | 'completed' | 'old';
@@ -90,7 +91,7 @@ function getRepoGroupInfo(s: CopilotSessionSummary): { key: string; label: strin
 function getRepoAccentColor(key: string): string {
   let hash = 0;
   for (let i = 0; i < key.length; i += 1) {
-    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+    hash = (hash * REPO_COLOR_HASH_MULTIPLIER + key.charCodeAt(i)) >>> 0;
   }
   return REPO_ACCENT_COLORS[hash % REPO_ACCENT_COLORS.length];
 }
