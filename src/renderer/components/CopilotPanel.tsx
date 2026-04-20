@@ -632,7 +632,8 @@ const CopilotPanel: React.FC = () => {
               const active = isActiveStatus(session.status);
               const isOpen = openSessionIds.has(session.id);
               const time = relativeTime(session.lastActivityTime);
-              const showCwd = !!session.cwd && normalizeGroupSource(session.cwd) !== group.key;
+              const cwdLabel = session.cwd ? shortPath(session.cwd) : '';
+              const showCwd = !!session.cwd && !subtitle && cwdLabel !== group.label;
               const hasStats = session.messageCount > 0 || session.toolCallCount > 0;
               const paneColor = sessionColors.get(session.id);
               // Left accent border mirrors the pane's color so you can match
@@ -699,7 +700,7 @@ const CopilotPanel: React.FC = () => {
                       <div className="ai-session-subtitle">{subtitle}</div>
                     )}
                     {showCwd && (
-                      <div className="ai-session-cwd" title={session.cwd}>{session.cwd}</div>
+                      <div className="ai-session-cwd" title={session.cwd}>{cwdLabel}</div>
                     )}
                     {active && (
                       <div className="ai-session-status" style={{ color: STATUS_COLORS[session.status] }}>
