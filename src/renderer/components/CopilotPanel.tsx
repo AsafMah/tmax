@@ -59,6 +59,24 @@ function getSubtitle(s: CopilotSessionSummary): string | null {
   return null;
 }
 
+function getRepoGroupInfo(s: CopilotSessionSummary): { key: string; label: string; title: string } {
+  const source = s.repository || s.cwd;
+  if (!source) {
+    return {
+      key: `unknown-${s.id}`,
+      label: 'Unknown repo',
+      title: s.id,
+    };
+  }
+
+  const label = shortPath(source);
+  return {
+    key: label.toLowerCase(),
+    label,
+    title: source,
+  };
+}
+
 function sortSessions(
   sessions: CopilotSessionSummary[],
   openSessionIds: Set<string>,
@@ -216,6 +234,29 @@ const CopilotPanel: React.FC = () => {
     }
     return counts;
   }, [copilotSessions, claudeCodeSessions, getSessionLifecycle]);
+
+  const groupedSessions = useMemo(() => {
+    const groups = new Map<
+      string,
+      { key: string; label: string; title: string; sessions: Array<{ session: CopilotSessionSummary; index: number }> }
+    >();
+
+    filtered.forEach((session, index) => {
+      const groupInfo = getRepoGroupInfo(session);
+      const existing = groups.get(groupInfo.key);
+      if (existing) {
+        existing.sessions.push({ session, index });
+        return;
+      }
+
+      groups.set(groupInfo.key, {
+        ...groupInfo,
+        sessions: [{ session, index }],
+      });
+    });
+
+    return Array.from(groups.values());
+  }, [filtered]);
 
   useEffect(() => {
     if (selectedIndex >= filtered.length) {
@@ -572,130 +613,138 @@ const CopilotPanel: React.FC = () => {
       />
 
       <div className="dir-panel-list" ref={listRef}>
-        {filtered.map((session, index) => {
-          const title = getTitle(session);
-          const subtitle = getSubtitle(session);
-          const active = isActiveStatus(session.status);
-          const isOpen = openSessionIds.has(session.id);
-          const time = relativeTime(session.lastActivityTime);
-          const hasStats = session.messageCount > 0 || session.toolCallCount > 0;
-          const paneColor = sessionColors.get(session.id);
-          // Left accent border mirrors the pane's color so you can match
-          // sessions with their open pane at a glance.
-          const itemStyle = paneColor ? { borderLeft: `3px solid ${paneColor}` } : undefined;
-
-          return (
-            <div
-              key={`${session.provider}-${session.id}`}
-              style={itemStyle}
-              className={`ai-session-item${index === selectedIndex ? ' selected' : ''}${selectedSessionIds.has(session.id) ? ' multi-selected' : ''}${active ? ' active' : ''}`}
-              onClick={(e) => {
-                setSelectedIndex(index);
-                if (e.ctrlKey || e.metaKey) {
-                  setSelectedSessionIds((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(session.id)) next.delete(session.id); else next.add(session.id);
-                    return next;
-                  });
-                } else {
-                  setSelectedSessionIds(new Set([session.id]));
-                }
-              }}
-              onDoubleClick={() => openSession(session)}
-              onMouseEnter={() => setSelectedIndex(index)}
-              onContextMenu={(e) => handleContextMenu(e, session)}
-              title={session.cwd || session.id}
-            >
-              <span
-                className={`ai-status-dot${active ? ' pulsing' : ''}`}
-                style={{ background: STATUS_COLORS[session.status] }}
-                title={STATUS_LABELS[session.status]}
-              />
-              <div className="ai-session-info">
-                <div className="ai-session-title-row">
-                  {renaming && renaming.id === session.id ? (
-                    <input
-                      ref={renameRef}
-                      className="ai-session-rename-input"
-                      value={renaming.value}
-                      onChange={(e) => setRenaming({ ...renaming, value: e.target.value })}
-                      onKeyDown={(e) => {
-                        e.stopPropagation();
-                        if (e.key === 'Enter') handleFinishRename();
-                        if (e.key === 'Escape') setRenaming(null);
-                      }}
-                      onBlur={handleFinishRename}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  ) : (
-                    <span className="ai-session-name" title={title}>
-                      {title}
-                    </span>
-                  )}
-                  {isOpen && <span className="ai-open-badge">OPEN</span>}
-                  {session.wsl && (
-                    <span className="ai-wsl-badge" title={session.wslDistro || 'WSL'}>
-                      {session.wslDistro || 'WSL'}
-                    </span>
-                  )}
-                  {time && <span className="ai-session-time">{time}</span>}
-                </div>
-                {subtitle && (
-                  <div className="ai-session-subtitle">{subtitle}</div>
-                )}
-                {session.cwd && (
-                  <div className="ai-session-cwd" title={session.cwd}>{session.cwd}</div>
-                )}
-                {active && (
-                  <div className="ai-session-status" style={{ color: STATUS_COLORS[session.status] }}>
-                    {STATUS_LABELS[session.status]}
-                  </div>
-                )}
-                <div className="ai-session-meta">
-                  <span className="ai-provider-badge" data-provider={session.provider}>
-                    {PROVIDER_LABEL[session.provider] || session.provider}
-                  </span>
-                  {session.model && (
-                    <span className="ai-session-stat">{session.model.replace(/^claude-/, '').replace(/-\d{8}$/, '')}</span>
-                  )}
-                  {hasStats && (
-                    <>
-                      <span className="ai-session-stat">{session.messageCount} prompts</span>
-                      {session.toolCallCount > 0 && (
-                        <span className="ai-session-stat">{session.toolCallCount} tools</span>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-              {/* Complete button (Active tab) or Reactivate button (Completed/Old tabs) */}
-              {lifecycleTab === 'active' && (
-                <button
-                  className="ai-session-lifecycle-btn ai-session-complete-btn"
-                  title="Mark as completed"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    useTerminalStore.getState().setSessionLifecycle(session.id, 'completed');
-                  }}
-                >
-                  ✓
-                </button>
-              )}
-              {(lifecycleTab === 'completed' || lifecycleTab === 'old') && (
-                <button
-                  className="ai-session-lifecycle-btn ai-session-reactivate-btn"
-                  title="Move back to Active"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    useTerminalStore.getState().setSessionLifecycle(session.id, 'active');
-                  }}
-                >
-                  ↩
-                </button>
-              )}
+        {groupedSessions.map((group) => (
+          <div key={group.key} className="ai-session-group">
+            <div className="ai-session-group-header" title={group.title}>
+              <span className="ai-session-group-name">{group.label}</span>
+              <span className="ai-session-group-count">{group.sessions.length}</span>
             </div>
-          );
-        })}
+            {group.sessions.map(({ session, index }) => {
+              const title = getTitle(session);
+              const subtitle = getSubtitle(session);
+              const active = isActiveStatus(session.status);
+              const isOpen = openSessionIds.has(session.id);
+              const time = relativeTime(session.lastActivityTime);
+              const hasStats = session.messageCount > 0 || session.toolCallCount > 0;
+              const paneColor = sessionColors.get(session.id);
+              // Left accent border mirrors the pane's color so you can match
+              // sessions with their open pane at a glance.
+              const itemStyle = paneColor ? { borderLeft: `3px solid ${paneColor}` } : undefined;
+
+              return (
+                <div
+                  key={`${session.provider}-${session.id}`}
+                  style={itemStyle}
+                  className={`ai-session-item${index === selectedIndex ? ' selected' : ''}${selectedSessionIds.has(session.id) ? ' multi-selected' : ''}${active ? ' active' : ''}`}
+                  onClick={(e) => {
+                    setSelectedIndex(index);
+                    if (e.ctrlKey || e.metaKey) {
+                      setSelectedSessionIds((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(session.id)) next.delete(session.id); else next.add(session.id);
+                        return next;
+                      });
+                    } else {
+                      setSelectedSessionIds(new Set([session.id]));
+                    }
+                  }}
+                  onDoubleClick={() => openSession(session)}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                  onContextMenu={(e) => handleContextMenu(e, session)}
+                  title={session.cwd || session.id}
+                >
+                  <span
+                    className={`ai-status-dot${active ? ' pulsing' : ''}`}
+                    style={{ background: STATUS_COLORS[session.status] }}
+                    title={STATUS_LABELS[session.status]}
+                  />
+                  <div className="ai-session-info">
+                    <div className="ai-session-title-row">
+                      {renaming && renaming.id === session.id ? (
+                        <input
+                          ref={renameRef}
+                          className="ai-session-rename-input"
+                          value={renaming.value}
+                          onChange={(e) => setRenaming({ ...renaming, value: e.target.value })}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === 'Enter') handleFinishRename();
+                            if (e.key === 'Escape') setRenaming(null);
+                          }}
+                          onBlur={handleFinishRename}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="ai-session-name" title={title}>
+                          {title}
+                        </span>
+                      )}
+                      {isOpen && <span className="ai-open-badge">OPEN</span>}
+                      {session.wsl && (
+                        <span className="ai-wsl-badge" title={session.wslDistro || 'WSL'}>
+                          {session.wslDistro || 'WSL'}
+                        </span>
+                      )}
+                      {time && <span className="ai-session-time">{time}</span>}
+                    </div>
+                    {subtitle && (
+                      <div className="ai-session-subtitle">{subtitle}</div>
+                    )}
+                    {session.cwd && (
+                      <div className="ai-session-cwd" title={session.cwd}>{session.cwd}</div>
+                    )}
+                    {active && (
+                      <div className="ai-session-status" style={{ color: STATUS_COLORS[session.status] }}>
+                        {STATUS_LABELS[session.status]}
+                      </div>
+                    )}
+                    <div className="ai-session-meta">
+                      <span className="ai-provider-badge" data-provider={session.provider}>
+                        {PROVIDER_LABEL[session.provider] || session.provider}
+                      </span>
+                      {session.model && (
+                        <span className="ai-session-stat">{session.model.replace(/^claude-/, '').replace(/-\d{8}$/, '')}</span>
+                      )}
+                      {hasStats && (
+                        <>
+                          <span className="ai-session-stat">{session.messageCount} prompts</span>
+                          {session.toolCallCount > 0 && (
+                            <span className="ai-session-stat">{session.toolCallCount} tools</span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  {/* Complete button (Active tab) or Reactivate button (Completed/Old tabs) */}
+                  {lifecycleTab === 'active' && (
+                    <button
+                      className="ai-session-lifecycle-btn ai-session-complete-btn"
+                      title="Mark as completed"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        useTerminalStore.getState().setSessionLifecycle(session.id, 'completed');
+                      }}
+                    >
+                      ✓
+                    </button>
+                  )}
+                  {(lifecycleTab === 'completed' || lifecycleTab === 'old') && (
+                    <button
+                      className="ai-session-lifecycle-btn ai-session-reactivate-btn"
+                      title="Move back to Active"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        useTerminalStore.getState().setSessionLifecycle(session.id, 'active');
+                      }}
+                    >
+                      ↩
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
         {filtered.length === 0 && (
           <div className="dir-panel-empty">
             {lifecycleTab === 'active' && allCount === 0
