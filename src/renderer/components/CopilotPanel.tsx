@@ -63,9 +63,9 @@ function getRepoGroupInfo(s: CopilotSessionSummary): { key: string; label: strin
   const source = s.repository || s.cwd;
   if (!source) {
     return {
-      key: `unknown-${s.id}`,
-      label: 'Unknown repo',
-      title: s.id,
+      key: 'unknown-location',
+      label: 'Unknown location',
+      title: 'Sessions without repo or working directory metadata',
     };
   }
 
