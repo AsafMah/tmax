@@ -47,6 +47,10 @@ function shortPath(p: string): string {
   return parts[parts.length - 1] || p;
 }
 
+function normalizeGroupSource(value: string): string {
+  return value.replace(/[\\/]+$/, '').replace(/\\/g, '/').toLowerCase();
+}
+
 function getTitle(s: CopilotSessionSummary): string {
   if (s.summary) return s.summary;
   if (s.cwd) return shortPath(s.cwd);
@@ -54,8 +58,11 @@ function getTitle(s: CopilotSessionSummary): string {
   return s.id.slice(0, 8);
 }
 
-function getSubtitle(s: CopilotSessionSummary): string | null {
-  if (s.summary && s.cwd) return shortPath(s.cwd);
+function getSubtitle(s: CopilotSessionSummary, groupLabel: string): string | null {
+  if (s.summary && s.cwd) {
+    const cwdLabel = shortPath(s.cwd);
+    if (cwdLabel !== groupLabel) return cwdLabel;
+  }
   return null;
 }
 
@@ -71,7 +78,7 @@ function getRepoGroupInfo(s: CopilotSessionSummary): { key: string; label: strin
 
   const label = shortPath(source);
   return {
-    key: source.replace(/[\\/]+$/, '').replace(/\\/g, '/').toLowerCase(),
+    key: normalizeGroupSource(source),
     label,
     title: source,
   };
@@ -621,11 +628,11 @@ const CopilotPanel: React.FC = () => {
             </div>
             {group.sessions.map(({ session, index }) => {
               const title = getTitle(session);
-              const subtitle = getSubtitle(session);
+              const subtitle = getSubtitle(session, group.label);
               const active = isActiveStatus(session.status);
               const isOpen = openSessionIds.has(session.id);
               const time = relativeTime(session.lastActivityTime);
-              const showCwd = !!session.cwd && session.cwd !== group.title;
+              const showCwd = !!session.cwd && normalizeGroupSource(session.cwd) !== group.key;
               const hasStats = session.messageCount > 0 || session.toolCallCount > 0;
               const paneColor = sessionColors.get(session.id);
               // Left accent border mirrors the pane's color so you can match
