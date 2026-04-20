@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import ReactDOM from 'react-dom';
 import { useTerminalStore } from '../state/terminal-store';
 import { getTerminalEntry } from '../terminal-registry';
+import { TAB_COLORS } from '../state/terminal-store';
 import type { CopilotSessionSummary, CopilotSessionStatus, SessionProvider, SessionLifecycle } from '../../shared/copilot-types';
 
 const MIN_WIDTH = 180;
@@ -23,6 +24,8 @@ const STATUS_LABELS: Record<CopilotSessionStatus, string> = {
   awaitingApproval: 'Needs approval',
   waitingForUser: 'Waiting for input',
 };
+
+const REPO_ACCENT_COLORS = TAB_COLORS.slice(0, 8).map((color) => color.value);
 
 type FilterTab = 'all' | 'copilot' | 'claude-code';
 type LifecycleTab = 'active' | 'completed' | 'old';
@@ -84,6 +87,14 @@ function getRepoGroupInfo(s: CopilotSessionSummary): { key: string; label: strin
   };
 }
 
+function getRepoAccentColor(key: string): string {
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  }
+  return REPO_ACCENT_COLORS[hash % REPO_ACCENT_COLORS.length];
+}
+
 function sortSessions(
   sessions: CopilotSessionSummary[],
   openSessionIds: Set<string>,
@@ -122,19 +133,6 @@ const CopilotPanel: React.FC = () => {
     return ids;
   }, [terminals]);
 
-  // Map AI session id -> pane color so list items can mirror the pane's color
-  const tabGroups = useTerminalStore((s) => s.tabGroups);
-  const defaultTabColor = useTerminalStore((s) => (s.config as any)?.defaultTabColor);
-  const sessionColors = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const [, t] of terminals) {
-      if (!t.aiSessionId) continue;
-      const groupColor = t.groupId ? tabGroups.get(t.groupId)?.color : undefined;
-      const color = groupColor || t.tabColor || defaultTabColor;
-      if (color) m.set(t.aiSessionId, color);
-    }
-    return m;
-  }, [terminals, tabGroups, defaultTabColor]);
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
@@ -245,7 +243,7 @@ const CopilotPanel: React.FC = () => {
   const groupedSessions = useMemo(() => {
     const groups = new Map<
       string,
-      { key: string; label: string; title: string; sessions: Array<{ session: CopilotSessionSummary; index: number }> }
+      { key: string; label: string; title: string; color: string; sessions: Array<{ session: CopilotSessionSummary; index: number }> }
     >();
 
     filtered.forEach((session, index) => {
@@ -258,6 +256,7 @@ const CopilotPanel: React.FC = () => {
 
       groups.set(groupInfo.key, {
         ...groupInfo,
+        color: getRepoAccentColor(groupInfo.key),
         sessions: [{ session, index }],
       });
     });
@@ -621,7 +620,11 @@ const CopilotPanel: React.FC = () => {
 
       <div className="dir-panel-list" ref={listRef}>
         {groupedSessions.map((group) => (
-          <div key={group.key} className="ai-session-group">
+          <div
+            key={group.key}
+            className="ai-session-group"
+            style={{ '--repo-accent': group.color } as React.CSSProperties}
+          >
             <div className="ai-session-group-header" title={group.title}>
               <span className="ai-session-group-name">{group.label}</span>
               <span className="ai-session-group-count">{group.sessions.length}</span>
@@ -635,15 +638,10 @@ const CopilotPanel: React.FC = () => {
               const cwdLabel = session.cwd ? shortPath(session.cwd) : '';
               const showCwd = !!session.cwd && !subtitle && cwdLabel !== group.label;
               const hasStats = session.messageCount > 0 || session.toolCallCount > 0;
-              const paneColor = sessionColors.get(session.id);
-              // Left accent border mirrors the pane's color so you can match
-              // sessions with their open pane at a glance.
-              const itemStyle = paneColor ? { borderLeft: `3px solid ${paneColor}` } : undefined;
 
               return (
                 <div
                   key={`${session.provider}-${session.id}`}
-                  style={itemStyle}
                   className={`ai-session-item${index === selectedIndex ? ' selected' : ''}${selectedSessionIds.has(session.id) ? ' multi-selected' : ''}${active ? ' active' : ''}`}
                   onClick={(e) => {
                     setSelectedIndex(index);
@@ -658,7 +656,6 @@ const CopilotPanel: React.FC = () => {
                     }
                   }}
                   onDoubleClick={() => openSession(session)}
-                  onMouseEnter={() => setSelectedIndex(index)}
                   onContextMenu={(e) => handleContextMenu(e, session)}
                   title={session.cwd || session.id}
                 >
