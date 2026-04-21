@@ -155,6 +155,13 @@ const CopilotPanel: React.FC = () => {
   const config = useTerminalStore((s) => s.config);
   const oldSessionDays = (config as any)?.oldSessionDays ?? 30;
 
+  // #69: Group sessions by cwd's folder name when on. Persisted in config.
+  const groupByRepo = !!(config as any)?.aiGroupByRepo;
+  const toggleGroupByRepo = () => {
+    useTerminalStore.getState().updateConfig({ aiGroupByRepo: !groupByRepo } as any);
+  };
+  const repoKey = (s: CopilotSessionSummary): string => shortPath(s.cwd || '') || '(no repo)';
+
   const getSessionLifecycle = useCallback((s: CopilotSessionSummary): SessionLifecycle => {
     const override = lifecycleOverrides[s.id];
     if (override) return override;
@@ -195,6 +202,27 @@ const CopilotPanel: React.FC = () => {
 
     return sortSessions(lifecycleFiltered, openSessionIds);
   }, [copilotSessions, claudeCodeSessions, query, filterTab, showRunningOnly, summaryOverrides, lifecycleTab, getSessionLifecycle, openSessionIds]);
+
+  // #69: when groupByRepo is on, reorder filtered so sessions sharing a cwd
+  // folder are contiguous, and groups are sorted by the most-recent activity
+  // within each group. Sessions without a cwd go to "(no repo)" at the end.
+  const displayList = useMemo(() => {
+    if (!groupByRepo) return filtered;
+    const groups = new Map<string, CopilotSessionSummary[]>();
+    for (const s of filtered) {
+      const key = repoKey(s);
+      const bucket = groups.get(key);
+      if (bucket) bucket.push(s); else groups.set(key, [s]);
+    }
+    const sortedGroups = [...groups.entries()].sort(([ak, av], [bk, bv]) => {
+      if (ak === '(no repo)') return 1;
+      if (bk === '(no repo)') return -1;
+      const aRecent = Math.max(...av.map((s) => s.lastActivityTime || 0));
+      const bRecent = Math.max(...bv.map((s) => s.lastActivityTime || 0));
+      return bRecent - aRecent;
+    });
+    return sortedGroups.flatMap(([, group]) => group);
+  }, [filtered, groupByRepo]);
 
   // Lifecycle counts (for tab badges) — computed from all sessions regardless of provider/running filter
   const lifecycleCounts = useMemo(() => {
@@ -531,6 +559,14 @@ const CopilotPanel: React.FC = () => {
           >
             Running
           </button>
+          <button
+            className={`ai-session-tab${groupByRepo ? ' active' : ''}`}
+            onClick={toggleGroupByRepo}
+            data-tooltip="Group sessions by repo"
+            style={{ fontSize: '10px', padding: '1px 6px' }}
+          >
+            Group
+          </button>
           <button className="dir-panel-close" onClick={handleRefresh} data-tooltip="Refresh"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M1 1v5h5"/><path d="M3.5 10a5.5 5.5 0 1 0 1.1-5.5L1 8"/></svg></button>
           <button className="dir-panel-close" onClick={() => useTerminalStore.getState().toggleCopilotPanel()} data-tooltip="Close">&#10005;</button>
         </div>
@@ -572,7 +608,7 @@ const CopilotPanel: React.FC = () => {
       />
 
       <div className="dir-panel-list" ref={listRef}>
-        {filtered.map((session, index) => {
+        {displayList.map((session, index) => {
           const title = getTitle(session);
           const subtitle = getSubtitle(session);
           const active = isActiveStatus(session.status);
@@ -583,10 +619,18 @@ const CopilotPanel: React.FC = () => {
           // Left accent border mirrors the pane's color so you can match
           // sessions with their open pane at a glance.
           const itemStyle = paneColor ? { borderLeft: `3px solid ${paneColor}` } : undefined;
+          const currentRepo = repoKey(session);
+          const prevRepo = index > 0 ? repoKey(displayList[index - 1]) : null;
+          const showGroupHeader = groupByRepo && currentRepo !== prevRepo;
 
           return (
+            <React.Fragment key={`${session.provider}-${session.id}`}>
+              {showGroupHeader && (
+                <div className="ai-session-group-header" title={currentRepo}>
+                  {currentRepo}
+                </div>
+              )}
             <div
-              key={`${session.provider}-${session.id}`}
               style={itemStyle}
               className={`ai-session-item${index === selectedIndex ? ' selected' : ''}${selectedSessionIds.has(session.id) ? ' multi-selected' : ''}${active ? ' active' : ''}`}
               onClick={(e) => {
@@ -694,9 +738,10 @@ const CopilotPanel: React.FC = () => {
                 </button>
               )}
             </div>
+            </React.Fragment>
           );
         })}
-        {filtered.length === 0 && (
+        {displayList.length === 0 && (
           <div className="dir-panel-empty">
             {lifecycleTab === 'active' && allCount === 0
               ? 'No AI sessions found'

@@ -3062,6 +3062,24 @@ select.settings-input {
   transition: background 0.1s;
 }
 
+.ai-session-group-header {
+  padding: 6px 10px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--dim-text, #a6adc8);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(137, 180, 250, 0.04);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ai-session-group-header:first-child {
+  border-top: none;
+}
+
 .ai-session-item:hover,
 .ai-session-item.selected {
   background: rgba(137, 180, 250, 0.08);
