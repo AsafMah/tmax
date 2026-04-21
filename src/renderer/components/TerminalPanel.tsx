@@ -355,39 +355,19 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
           return false;
         }
       }
-      // Log every Enter press so we can diagnose "sometimes works" intermittency
-      if (event.key === 'Enter' || event.code === 'Enter' || event.code === 'NumpadEnter') {
-        window.terminalAPI.diagLog('renderer:enter-keydown', {
-          terminalId,
-          key: event.key,
-          code: event.code,
-          ctrl: event.ctrlKey,
-          shift: event.shiftKey,
-          alt: event.altKey,
-          meta: event.metaKey,
-          repeat: event.repeat,
-        });
-      }
-      // Ctrl+Enter / Shift+Enter: match what Windows Terminal sends - full
-      // win32-input-mode sequence where Uc is the character the key *would*
-      // produce (always CR=13 for Enter, regardless of modifiers), and Cs
-      // carries the modifier bits. Apps like Claude Code and Copilot CLI use
-      // the Cs field to distinguish Shift+Enter (insert newline) from Enter
-      // (submit). The earlier `Uc=10` variant for Shift+Enter confused apps.
-      // Format: CSI Vk;Sc;Uc;Kd;Cs;Rc _ (VK_RETURN=13, ScanCode=28, Kd=down)
-      // Use event.code so NumpadEnter is also caught (event.key is still 'Enter' but
-      // different layouts/IMEs can change event.key).
-      const isEnterKey = event.key === 'Enter' || event.code === 'Enter' || event.code === 'NumpadEnter';
-      if (isEnterKey && (event.ctrlKey || event.shiftKey) && !event.altKey) {
-        // CSI-u / kitty keyboard protocol format: `CSI keycode ; modifiers u`
-        // Shift+Enter = \x1b[13;2u, Ctrl+Enter = \x1b[13;5u, Ctrl+Shift+Enter = \x1b[13;6u.
-        // Verified that Claude Code interprets \x1b[13;2u as "insert newline in
-        // input" even on Windows via ConPTY. win32-input-mode sequences and
-        // raw LF don't work reliably there because the child app has to have
-        // opted in to them.
-        const modBits = 1 + (event.shiftKey ? 1 : 0) + (event.altKey ? 2 : 0) + (event.ctrlKey ? 4 : 0);
-        window.terminalAPI.writePty(terminalId, `\x1b[13;${modBits}u`);
-        window.terminalAPI.diagLog('renderer:enter-sent', { terminalId, path: 'csi-u', mod: modBits });
+      // Shift+Enter: send ESC+CR which Claude Code's and Copilot CLI's Ink-based
+      // input parsers interpret as Meta+Enter (a.k.a. Alt+Enter) → insert newline
+      // in the multi-line input box instead of submitting (#68). Verified against
+      // Claude Code's bundled input parser, which sets `meta=true` when the raw
+      // sequence starts with ESC. This is also what VS Code's terminal sends for
+      // Shift+Enter via its `workbench.action.terminal.sendSequence` keybinding.
+      // Earlier attempts with CSI-u (\x1b[13;2u), plain LF, and win32-input-mode
+      // did not work reliably against either CLI.
+      const isShiftEnterOnly = (event.key === 'Enter' || event.code === 'Enter' || event.code === 'NumpadEnter')
+        && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey;
+      if (isShiftEnterOnly) {
+        event.preventDefault();
+        window.terminalAPI.writePty(terminalId, '\x1b\r');
         return false;
       }
       return true;
