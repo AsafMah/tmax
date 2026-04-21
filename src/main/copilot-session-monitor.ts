@@ -48,7 +48,10 @@ export class CopilotSessionMonitor {
     }
 
     const currentIds = new Set<string>();
-    const maxAgeMs = 7 * 24 * 60 * 60 * 1000; // 7 days
+    // 30 days matches the app-wide `oldSessionDays` default used by the UI's
+    // stale-session detection and the "mark old" threshold. A tighter scan
+    // filter would hide sessions that `gh copilot --list` still reports.
+    const maxAgeMs = 30 * 24 * 60 * 60 * 1000;
     const cutoff = Date.now() - maxAgeMs;
 
     for (const entry of entries) {
