@@ -407,6 +407,24 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
         pendingData = '';
       }
     };
+
+    // #67: Ink-based CLIs (Claude Code, Copilot CLI) enable bracketed paste
+    // but don't send DECTCEM (\x1b[?25l) to hide the terminal's hardware
+    // cursor before painting their own cursor indicator. Result: two cursors
+    // render side-by-side. Treat bracketed-paste-mode changes in the PTY
+    // output as a proxy for "app is drawing its own cursor" and sync xterm's
+    // cursor visibility.
+    const syncCursorVisibility = (chunk: string) => {
+      let last: 'hide' | 'show' | null = null;
+      for (let i = 0; i < chunk.length; i++) {
+        if (chunk.charCodeAt(i) !== 0x1b) continue;
+        if (chunk.startsWith('\x1b[?2004h', i)) last = 'hide';
+        else if (chunk.startsWith('\x1b[?2004l', i)) last = 'show';
+      }
+      if (last === 'hide') term.write('\x1b[?25l');
+      else if (last === 'show') term.write('\x1b[?25h');
+    };
+
     const unsubscribePtyData = window.terminalAPI.onPtyData(
       (id: string, data: string) => {
         if (id === terminalId) {
@@ -418,6 +436,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
             processStatusRef.current = 'active';
             setProcessStatus('active');
           }
+          syncCursorVisibility(data);
           pendingData += data;
           if (!rafScheduled) {
             rafScheduled = true;
