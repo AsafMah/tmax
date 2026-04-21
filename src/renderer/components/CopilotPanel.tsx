@@ -163,14 +163,16 @@ const CopilotPanel: React.FC = () => {
   const config = useTerminalStore((s) => s.config);
   const oldSessionDays = (config as any)?.oldSessionDays ?? 30;
 
-  // #69: Group sessions by cwd's folder name when on. Persisted in config.
-  const groupByRepo = !!(config as any)?.aiGroupByRepo;
+  // #69: Group sessions by cwd's folder name. Default on; persisted in config
+  // so users who explicitly turn it off stay off across restarts.
+  const groupByRepo = (config as any)?.aiGroupByRepo !== false;
   const repoKey = (s: CopilotSessionSummary): string => shortPath(s.cwd || '') || '(no repo)';
 
-  // Auto-collapse all groups on the transition from off → on. Users asked
-  // for the initial grouped state to be compact (too many repos to scroll);
-  // an expand-all button on the header lets them pop them open.
-  const wasGroupedRef = useRef(groupByRepo);
+  // Auto-collapse all groups on the transition from off → on, AND on initial
+  // mount when grouping is on (since the default is now "on"). Users asked
+  // for the initial grouped state to be compact; an expand-all button on the
+  // header lets them pop them open.
+  const wasGroupedRef = useRef(false);
   useEffect(() => {
     if (groupByRepo && !wasGroupedRef.current) {
       const allSessions = [...copilotSessions, ...claudeCodeSessions].filter((s) => s.messageCount > 0);
