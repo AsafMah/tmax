@@ -32,8 +32,8 @@ test('Group toggle renders group headers and contiguous sessions per repo (#69)'
     expect(clicked).toBe(true);
     await window.waitForTimeout(400);
 
-    // Now headers should appear. Each must be followed immediately by a session,
-    // and no two sessions of different groups should be adjacent without a header.
+    // Now headers should appear. Groups auto-collapse on first toggle, so by
+    // default we expect only headers (no sessions) until a group is expanded.
     const headers = await window.$$('.ai-session-group-header');
     expect(headers.length).toBeGreaterThan(0);
 
@@ -46,13 +46,19 @@ test('Group toggle renders group headers and contiguous sessions per repo (#69)'
     }
     console.log('group layout:', layout);
 
-    // Invariant: every H is followed by at least one S before another H
-    for (let i = 0; i < layout.length; i++) {
-      if (layout[i].startsWith('H:')) {
-        expect(i + 1 < layout.length).toBe(true);
-        expect(layout[i + 1]).toBe('S');
-      }
+    // Click the first header to expand it - at least one session should appear right after
+    await headers[0].click();
+    await window.waitForTimeout(300);
+    const expandedItems = await window.$$('.dir-panel-list > *');
+    const expandedLayout: string[] = [];
+    for (const it of expandedItems) {
+      const cls = (await it.getAttribute('class')) || '';
+      if (cls.includes('ai-session-group-header')) expandedLayout.push('H');
+      else if (cls.includes('ai-session-item')) expandedLayout.push('S');
     }
+    // First element is a header, second should be a session (after expanding)
+    expect(expandedLayout[0]).toBe('H');
+    expect(expandedLayout[1]).toBe('S');
 
     // Clicking Group again should turn headers off
     for (const b of await window.$$('.ai-session-tab')) {

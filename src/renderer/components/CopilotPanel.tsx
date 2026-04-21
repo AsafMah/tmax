@@ -117,8 +117,6 @@ const CopilotPanel: React.FC = () => {
   const [resizing, setResizing] = useState(false);
   const [filterTab, setFilterTab] = useState<FilterTab>('all');
   const [lifecycleTab, setLifecycleTab] = useState<LifecycleTab>('active');
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
-  const filterDropdownRef = useRef<HTMLDivElement>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; session: CopilotSessionSummary } | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; provider: SessionProvider; value: string } | null>(null);
   const [promptsDialog, setPromptsDialog] = useState<{ title: string; prompts: string[]; terminalId: string | null } | null>(null);
@@ -167,10 +165,23 @@ const CopilotPanel: React.FC = () => {
 
   // #69: Group sessions by cwd's folder name when on. Persisted in config.
   const groupByRepo = !!(config as any)?.aiGroupByRepo;
+  const repoKey = (s: CopilotSessionSummary): string => shortPath(s.cwd || '') || '(no repo)';
+
+  // Auto-collapse all groups on the transition from off → on. Users asked
+  // for the initial grouped state to be compact (too many repos to scroll);
+  // an expand-all button on the header lets them pop them open.
+  const wasGroupedRef = useRef(groupByRepo);
+  useEffect(() => {
+    if (groupByRepo && !wasGroupedRef.current) {
+      const allSessions = [...copilotSessions, ...claudeCodeSessions].filter((s) => s.messageCount > 0);
+      setCollapsedGroups(new Set(allSessions.map((s) => repoKey(s))));
+    }
+    wasGroupedRef.current = groupByRepo;
+  }, [groupByRepo, copilotSessions, claudeCodeSessions]);
+
   const toggleGroupByRepo = () => {
     useTerminalStore.getState().updateConfig({ aiGroupByRepo: !groupByRepo } as any);
   };
-  const repoKey = (s: CopilotSessionSummary): string => shortPath(s.cwd || '') || '(no repo)';
 
   const getSessionLifecycle = useCallback((s: CopilotSessionSummary): SessionLifecycle => {
     const override = lifecycleOverrides[s.id];
@@ -328,16 +339,6 @@ const CopilotPanel: React.FC = () => {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [ctxMenu]);
-
-  // Close filter dropdown on outside click
-  useEffect(() => {
-    if (!showFilterDropdown) return;
-    const handler = (e: MouseEvent) => {
-      if (filterDropdownRef.current && !filterDropdownRef.current.contains(e.target as Node)) setShowFilterDropdown(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showFilterDropdown]);
 
   // Focus rename input
   useEffect(() => {
@@ -536,42 +537,6 @@ const CopilotPanel: React.FC = () => {
       <div className="dir-panel-header">
         <span>✨ AI Sessions</span>
         <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-          <div className="ai-filter-wrapper" ref={filterDropdownRef}>
-            <button
-              className={`ai-filter-button${filterTab !== 'all' ? ' has-filter' : ''}`}
-              onClick={() => setShowFilterDropdown((v) => !v)}
-              data-tooltip="Filter"
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="1" y1="3" x2="15" y2="3"/><line x1="3" y1="8" x2="13" y2="8"/><line x1="5.5" y1="13" x2="10.5" y2="13"/></svg>
-              {filterTab !== 'all' && <span className="ai-filter-badge" />}
-            </button>
-            {showFilterDropdown && (
-              <div className="ai-filter-dropdown">
-                <button
-                  className={`ai-filter-option${filterTab === 'all' ? ' active' : ''}`}
-                  onClick={() => { setFilterTab('all'); setShowFilterDropdown(false); }}
-                >
-                  All providers
-                </button>
-                {copilotCount > 0 && (
-                  <button
-                    className={`ai-filter-option${filterTab === 'copilot' ? ' active' : ''}`}
-                    onClick={() => { setFilterTab('copilot'); setShowFilterDropdown(false); }}
-                  >
-                    Copilot ({copilotCount})
-                  </button>
-                )}
-                {claudeCount > 0 && (
-                  <button
-                    className={`ai-filter-option${filterTab === 'claude-code' ? ' active' : ''}`}
-                    onClick={() => { setFilterTab('claude-code'); setShowFilterDropdown(false); }}
-                  >
-                    Claude ({claudeCount})
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
           <button
             className={`ai-session-tab${showRunningOnly ? ' active' : ''}`}
             onClick={() => setShowRunningOnly((v) => !v)}
@@ -588,6 +553,20 @@ const CopilotPanel: React.FC = () => {
           >
             Group
           </button>
+          {groupByRepo && (() => {
+            const allKeys = Array.from(groupSizes.keys());
+            const allCollapsed = allKeys.length > 0 && allKeys.every((k) => collapsedGroups.has(k));
+            return (
+              <button
+                className="ai-session-tab"
+                onClick={() => setCollapsedGroups(allCollapsed ? new Set() : new Set(allKeys))}
+                data-tooltip={allCollapsed ? 'Expand all groups' : 'Collapse all groups'}
+                style={{ fontSize: '10px', padding: '1px 6px' }}
+              >
+                {allCollapsed ? '▸▸' : '▾▾'}
+              </button>
+            );
+          })()}
           <button className="dir-panel-close" onClick={handleRefresh} data-tooltip="Refresh"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M1 1v5h5"/><path d="M3.5 10a5.5 5.5 0 1 0 1.1-5.5L1 8"/></svg></button>
           <button className="dir-panel-close" onClick={() => useTerminalStore.getState().toggleCopilotPanel()} data-tooltip="Close">&#10005;</button>
         </div>
