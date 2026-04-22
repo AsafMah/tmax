@@ -69,11 +69,14 @@ const App: React.FC = () => {
         // Restore FIRST so checkStaleActiveSessions sees persisted overrides
         // and its update gets merged on top rather than being overwritten.
         if (useTerminalStore.getState().terminals.size === 0) {
-          const restored = await useTerminalStore.getState().restoreSession();
+          await useTerminalStore.getState().restoreSession();
           if (cancelled) return;
-          if (!restored) {
-            await createTerminal();
-          }
+        }
+        // Always land on a non-empty window - if nothing restored (first run,
+        // or user closed all terminals before quitting), auto-spawn a default
+        // terminal. Matches Windows Terminal / iTerm / Ghostty behavior.
+        if (useTerminalStore.getState().terminals.size === 0) {
+          await createTerminal();
         }
         // Check for stale active sessions (>30 days) after hydration
         useTerminalStore.getState().checkStaleActiveSessions();
