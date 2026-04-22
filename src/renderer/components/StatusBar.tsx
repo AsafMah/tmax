@@ -203,15 +203,13 @@ const StatusBar: React.FC = () => {
           >
             &#9638; {viewMode === 'focus' ? 'Focus' : viewMode === 'grid' ? (gridColumns ? `Grid ${gridColumns}col` : 'Grid') : 'Split'}
           </button>
-          {broadcastMode && (
-            <button
-              className="status-mode-btn status-broadcast-active"
-              onClick={() => useTerminalStore.getState().toggleBroadcastMode()}
-              title="Broadcast typing to all panes (Ctrl+Shift+A)"
-            >
-              &#128227; Broadcast
-            </button>
-          )}
+          <button
+            className={`status-mode-btn${broadcastMode ? ' status-broadcast-active' : ''}`}
+            onClick={() => useTerminalStore.getState().toggleBroadcastMode()}
+            title="Broadcast typing to all panes (Ctrl+Shift+A)"
+          >
+            &#128227; Broadcast{broadcastMode ? ' ON' : ''}
+          </button>
           <span className="status-dim">
             {totalCount} terminal{totalCount !== 1 ? 's' : ''}
             {floatingCount > 0 ? ` (${tiledCount} tiled, ${floatingCount} floating)` : ''}
