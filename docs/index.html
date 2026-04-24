@@ -347,9 +347,78 @@
       border-radius: 3px;
       font-family: monospace;
     }
+
+    /* Sticky top bar with a prominent Star-on-GitHub CTA. Visible from the
+       first pixel so drive-by visitors notice and click. */
+    .top-bar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 18px;
+      background: rgba(10, 10, 10, 0.85);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+    }
+    .top-bar-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--fg);
+      text-decoration: none;
+    }
+    .top-bar-left img { width: 22px; height: 22px; }
+    .top-bar-star {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      background: linear-gradient(180deg, #2a2a2a 0%, #1c1c1c 100%);
+      color: var(--fg);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: transform 0.12s, border-color 0.12s, background 0.12s;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+    }
+    .top-bar-star:hover {
+      border-color: var(--yellow);
+      background: linear-gradient(180deg, #3a3a25 0%, #2a2a18 100%);
+      transform: translateY(-1px);
+    }
+    .top-bar-star .star-icon { color: var(--yellow); font-size: 14px; }
+    .top-bar-star-count {
+      padding-left: 8px;
+      margin-left: 8px;
+      border-left: 1px solid rgba(255,255,255,0.15);
+      color: var(--fg2);
+      font-weight: 500;
+      min-width: 18px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
+
+<div class="top-bar">
+  <a class="top-bar-left" href="#top">
+    <img src="https://raw.githubusercontent.com/InbarR/tmax/main/assets/icon.png" alt="tmax">
+    <span>tmax</span>
+  </a>
+  <a class="top-bar-star" href="https://github.com/InbarR/tmax" target="_blank" rel="noopener" aria-label="Star tmax on GitHub">
+    <span class="star-icon">&#9733;</span>
+    <span>Star on GitHub</span>
+    <span class="top-bar-star-count" id="top-bar-star-count">&middot;</span>
+  </a>
+</div>
 
 <div style="text-align:center;padding:12px;color:var(--fg2);font-size:12px;border-bottom:1px solid var(--border);">&copy; Inbar Rotem 314</div>
 
@@ -668,7 +737,10 @@ async function loadRelease() {
     try {
       const repoRes = await fetch(`https://api.github.com/repos/${REPO}`);
       const repoData = await repoRes.json();
-      document.getElementById('star-badge').textContent = `\u2733 ${repoData.stargazers_count} stars`;
+      const stars = repoData.stargazers_count;
+      document.getElementById('star-badge').textContent = `\u2733 ${stars} stars`;
+      const topCount = document.getElementById('top-bar-star-count');
+      if (topCount) topCount.textContent = String(stars);
     } catch {}
 
   } catch (e) {
