@@ -12,6 +12,25 @@ function extractText(content: unknown): string | null {
   return null;
 }
 
+/**
+ * Turn a raw first-prompt string into a summary suitable for the session list.
+ * Handles the slash-command case: Claude Code injects the full command template
+ * as the first "user message", producing garbage like
+ * `<command-message>video-dub</command-message><command-name>video-dub</command-name>...`
+ * which is useless as a title. When detected, surface it as `/<name> — <rest>`.
+ */
+function formatFirstPromptSummary(raw: string): string {
+  let out = raw;
+  const nameMatch = out.match(/<command-name>([^<]+)<\/command-name>/);
+  if (nameMatch) {
+    const name = nameMatch[1];
+    // Strip all <command-*> tags (with their contents), then take what's left.
+    const rest = out.replace(/<command-[^>]+>[\s\S]*?<\/command-[^>]+>/g, '').trim();
+    out = rest ? `/${name} — ${rest}` : `/${name}`;
+  }
+  return out.slice(0, 120).replace(/\n/g, ' ');
+}
+
 export interface ClaudeCodeParsedSession {
   sessionId: string;
   slug: string;
@@ -156,7 +175,7 @@ function processLine(line: string, state: CacheEntry): void {
           if (parsed.message?.content) {
             const text = extractText(parsed.message.content);
             if (text && !text.startsWith('[Request interrupted')) {
-              state.firstPrompt = text.slice(0, 120).replace(/\n/g, ' ');
+              state.firstPrompt = formatFirstPromptSummary(text);
             }
           }
           state.metaExtracted = true;
@@ -190,7 +209,7 @@ function processLine(line: string, state: CacheEntry): void {
             if (parsed.message?.content) {
               const text = extractText(parsed.message.content);
               if (text && !text.startsWith('[Request interrupted')) {
-                state.firstPrompt = text.slice(0, 120).replace(/\n/g, ' ');
+                state.firstPrompt = formatFirstPromptSummary(text);
               }
             }
           } catch { /* skip */ }
