@@ -40,6 +40,15 @@ const App: React.FC = () => {
   useEffect(() => {
     document.body.classList.toggle('broadcast-on', broadcastMode);
   }, [broadcastMode]);
+
+  // Self-heal grid-mode layouts whenever the terminals map changes. If any
+  // code path added a tiled terminal without inserting it into tilingRoot,
+  // this catches the orphan on the next tick and rebuilds the grid so all
+  // panes render. The action is a no-op when viewMode !== 'grid' or when
+  // the tree already matches the map.
+  useEffect(() => {
+    useTerminalStore.getState().reconcileGridLayout();
+  }, [terminals]);
   const showCommandPalette = useTerminalStore((s) => s.showCommandPalette);
   const tabBarPosition = useTerminalStore((s) => s.tabBarPosition);
   const hideTabBar = useTerminalStore((s) => s.hideTabTitles);

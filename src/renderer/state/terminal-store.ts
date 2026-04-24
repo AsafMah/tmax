@@ -647,6 +647,10 @@ interface TerminalStore {
   // Prompts dialog action
   showPromptsForTerminal: (terminalId: TerminalId) => void;
   clearPromptsDialogRequest: () => void;
+  // Self-healing: in grid mode, ensures every tiled terminal is present in
+  // the tilingRoot. Called from a subscribe() side-effect so any code path
+  // that accidentally leaves an orphan pane gets reconciled on the next tick.
+  reconcileGridLayout: () => void;
   // Tab group actions
   createTabGroup: (name: string, color: string) => string;
   deleteTabGroup: (groupId: string) => void;
@@ -1367,6 +1371,36 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
       layout: { ...layout, tilingRoot: newRoot },
       focusedTerminalId: id,
     });
+  },
+
+  reconcileGridLayout: () => {
+    const { viewMode, terminals, layout, gridColumns, gridTabIds } = get();
+    if (viewMode !== 'grid') return;
+
+    // If the user explicitly gridded a subset via gridSelectedTabs, respect
+    // that scope - only reconcile within the selected set.
+    const hasSubsetScope = Object.keys(gridTabIds).length > 0;
+    const eligibleIds = Array.from(terminals.entries())
+      .filter(([id, t]) => t.mode === 'tiled' && (!hasSubsetScope || gridTabIds[id]))
+      .map(([id]) => id);
+
+    const treeIds = layout.tilingRoot ? getLeafOrder(layout.tilingRoot) : [];
+    if (eligibleIds.length === treeIds.length) return;
+
+    // Orphans exist - some path added a tiled terminal without inserting it
+    // into tilingRoot. Rebuild the grid so the missing panes show up.
+    // Tab-order (Map insertion order) is authoritative for position, which
+    // matches the "grid follows tab order" invariant.
+    const rebuilt = eligibleIds.length > 0
+      ? buildGridTree(eligibleIds, gridColumns || undefined)
+      : null;
+    if (!rebuilt) return;
+    window.terminalAPI?.diagLog?.('renderer:reconcile-grid', {
+      fromTree: treeIds.length,
+      fromMap: eligibleIds.length,
+      subsetScope: hasSubsetScope,
+    });
+    set({ layout: { ...layout, tilingRoot: rebuilt } });
   },
 
   updateFloatingPanel: (
