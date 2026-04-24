@@ -29,6 +29,14 @@ interface EventRecord {
 
 const cache = new Map<string, ParserCache>();
 
+interface PromptsCacheEntry {
+  mtimeMs: number;
+  size: number;
+  limit: number;
+  prompts: string[];
+}
+const promptsCache = new Map<string, PromptsCacheEntry>();
+
 export function parseSessionEvents(eventsFilePath: string): ParsedSessionEvents | null {
   let fileHandle: number | undefined;
   try {
@@ -86,6 +94,11 @@ export function parseSessionEvents(eventsFilePath: string): ParsedSessionEvents 
 
 export function extractCopilotPrompts(eventsFilePath: string, limit = 20): string[] {
   try {
+    const stat = fs.statSync(eventsFilePath);
+    const cached = promptsCache.get(eventsFilePath);
+    if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size && cached.limit === limit) {
+      return cached.prompts;
+    }
     const content = fs.readFileSync(eventsFilePath, 'utf-8');
     const prompts: string[] = [];
     for (const line of content.split('\n')) {
@@ -98,7 +111,9 @@ export function extractCopilotPrompts(eventsFilePath: string, limit = 20): strin
         }
       } catch { /* skip */ }
     }
-    return prompts.slice(-limit);
+    const result = prompts.slice(-limit);
+    promptsCache.set(eventsFilePath, { mtimeMs: stat.mtimeMs, size: stat.size, limit, prompts: result });
+    return result;
   } catch {
     return [];
   }
@@ -106,6 +121,7 @@ export function extractCopilotPrompts(eventsFilePath: string, limit = 20): strin
 
 export function clearParserCache(eventsFilePath: string): void {
   cache.delete(eventsFilePath);
+  promptsCache.delete(eventsFilePath);
 }
 
 function normalizeEvent(raw: Record<string, unknown>): EventRecord {

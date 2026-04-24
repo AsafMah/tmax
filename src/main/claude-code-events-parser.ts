@@ -95,6 +95,14 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 
+interface PromptsCacheEntry {
+  mtimeMs: number;
+  size: number;
+  limit: number;
+  prompts: string[];
+}
+const promptsCache = new Map<string, PromptsCacheEntry>();
+
 export function parseClaudeCodeSession(filePath: string): ClaudeCodeParsedSession | null {
   let fd: number | undefined;
   try {
@@ -321,6 +329,11 @@ function deriveResult(
 
 export function extractClaudeCodePrompts(filePath: string, limit = 20): string[] {
   try {
+    const stat = fs.statSync(filePath);
+    const cached = promptsCache.get(filePath);
+    if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size && cached.limit === limit) {
+      return cached.prompts;
+    }
     const content = fs.readFileSync(filePath, 'utf-8');
     const prompts: string[] = [];
     for (const line of content.split('\n')) {
@@ -333,7 +346,9 @@ export function extractClaudeCodePrompts(filePath: string, limit = 20): string[]
         }
       } catch { /* skip */ }
     }
-    return prompts.slice(-limit);
+    const result = prompts.slice(-limit);
+    promptsCache.set(filePath, { mtimeMs: stat.mtimeMs, size: stat.size, limit, prompts: result });
+    return result;
   } catch {
     return [];
   }
@@ -341,4 +356,5 @@ export function extractClaudeCodePrompts(filePath: string, limit = 20): string[]
 
 export function clearClaudeCodeCache(filePath: string): void {
   cache.delete(filePath);
+  promptsCache.delete(filePath);
 }
