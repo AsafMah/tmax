@@ -56,9 +56,14 @@
 </div>
 
 <div class="summary">
-  <div class="stat-card"><div class="label">Landing Visits</div><div class="value" id="gcVisits">-</div><div class="label" style="margin-top:4px;text-transform:none;letter-spacing:0;" id="gcVisitsSub">GoatCounter</div></div>
+  <div class="stat-card"><div class="label">Landing Visits (unique)</div><div class="value" id="gcVisits">-</div><div class="label" style="margin-top:4px;text-transform:none;letter-spacing:0;" id="gcVisitsSub">GoatCounter · deduplicated by visitor</div></div>
   <div class="stat-card"><div class="label">Download Clicks</div><div class="value" id="gcClicks">-</div><div class="label" style="margin-top:4px;text-transform:none;letter-spacing:0;" id="gcClicksSub">All platforms, any variant</div></div>
   <div class="stat-card"><div class="label">Click-through Rate</div><div class="value" id="gcCtr">-</div><div class="label" style="margin-top:4px;text-transform:none;letter-spacing:0;">Clicks / Visits</div></div>
+</div>
+
+<div class="chart-section" id="gcPlatformsSection" style="display:none;">
+  <div class="chart-title">Download clicks by platform</div>
+  <div class="summary" id="gcPlatforms" style="margin-bottom:0;"></div>
 </div>
 
 <div class="chart-section">
@@ -638,13 +643,26 @@ async function fetchGcCounter(path) {
     const r = await fetch(url, { cache: 'no-store' });
     if (!r.ok) return null;
     const j = await r.json();
-    // GoatCounter returns count as a string, e.g. {"count":"42","count_unique":"42"}
-    const n = Number(j.count);
-    return Number.isFinite(n) ? n : null;
+    // GoatCounter returns counts as quoted strings, e.g. {"count":"42","count_unique":"42"}.
+    const total = Number(j.count);
+    const unique = Number(j.count_unique);
+    return {
+      total: Number.isFinite(total) ? total : 0,
+      unique: Number.isFinite(unique) ? unique : 0,
+    };
   } catch {
     return null;
   }
 }
+
+// Platform download paths tracked via data-goatcounter-click in index.html.
+// Primary download is recommended per-visitor (detected OS); "other" links
+// cover cross-platform downloads. We aggregate both into a single per-OS tile.
+const PLATFORMS = [
+  { key: 'win32',  label: 'Windows', archs: ['x64', 'arm64'] },
+  { key: 'darwin', label: 'macOS',   archs: ['x64', 'arm64'] },
+  { key: 'linux',  label: 'Linux',   archs: ['x64'] },
+];
 
 (async function loadGoatCounter() {
   const visitsEl = document.getElementById('gcVisits');
@@ -658,19 +676,42 @@ async function fetchGcCounter(path) {
     visitsEl.textContent = 'n/a';
     document.getElementById('gcVisitsSub').textContent = 'Enable public /counter in GoatCounter settings';
   } else {
-    visitsEl.textContent = visits.toLocaleString();
+    visitsEl.textContent = visits.unique.toLocaleString();
   }
   if (clicks == null) {
     clicksEl.textContent = 'n/a';
   } else {
-    clicksEl.textContent = clicks.toLocaleString();
+    clicksEl.textContent = clicks.total.toLocaleString();
   }
-  if (visits && visits > 0 && clicks != null) {
-    const pct = (clicks / visits) * 100;
+  if (visits && visits.unique > 0 && clicks != null) {
+    const pct = (clicks.total / visits.unique) * 100;
     ctrEl.textContent = pct.toFixed(1) + '%';
     ctrEl.classList.toggle('green', pct >= 10);
   } else {
     ctrEl.textContent = 'n/a';
+  }
+
+  // Per-platform breakdown: sum primary + other-link clicks across all arches
+  // for each OS. Each path is a separate GoatCounter event, so we fan out
+  // requests in parallel.
+  const perPlatform = await Promise.all(PLATFORMS.map(async (p) => {
+    const paths = [];
+    for (const arch of p.archs) {
+      paths.push(`dl-primary-${p.key}-${arch}`);
+      paths.push(`dl-other-${p.key}-${arch}`);
+    }
+    const counts = await Promise.all(paths.map(fetchGcCounter));
+    const total = counts.reduce((s, c) => s + (c ? c.total : 0), 0);
+    return { label: p.label, total };
+  }));
+  const anyPlatform = perPlatform.some((p) => p.total > 0);
+  if (anyPlatform) {
+    const section = document.getElementById('gcPlatformsSection');
+    const container = document.getElementById('gcPlatforms');
+    section.style.display = '';
+    container.innerHTML = perPlatform
+      .map((p) => `<div class="stat-card"><div class="label">${p.label}</div><div class="value">${p.total.toLocaleString()}</div></div>`)
+      .join('');
   }
 })();
 
