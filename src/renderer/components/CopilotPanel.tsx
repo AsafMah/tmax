@@ -313,7 +313,14 @@ const CopilotPanel: React.FC = () => {
     }
   }, [filtered.length, selectedIndex]);
 
+  // Only scroll the list when selection moved via keyboard. Hover-driven
+  // changes (onMouseEnter below) would otherwise fight the user's wheel
+  // scroll - they scroll up, hover hits item 3, selection updates, effect
+  // snaps the list back down to item 3.
+  const scrollOnSelectChange = useRef(false);
   useEffect(() => {
+    if (!scrollOnSelectChange.current) return;
+    scrollOnSelectChange.current = false;
     if (listRef.current) {
       const items = listRef.current.querySelectorAll('.ai-session-item');
       const item = items[selectedIndex] as HTMLElement | undefined;
@@ -345,7 +352,10 @@ const CopilotPanel: React.FC = () => {
       setLifecycleTab(sessionLifecycle);
     } else {
       const idx = filtered.findIndex((s) => s.id === aiSessionId);
-      if (idx >= 0) setSelectedIndex(idx);
+      if (idx >= 0) {
+        scrollOnSelectChange.current = true;
+        setSelectedIndex(idx);
+      }
     }
   }, [focusedTerminalId, show, lifecycleTab, filtered, getSessionLifecycle]);
 
@@ -355,6 +365,7 @@ const CopilotPanel: React.FC = () => {
     if (!id) return;
     const idx = filtered.findIndex((s) => s.id === id);
     if (idx >= 0) {
+      scrollOnSelectChange.current = true;
       setSelectedIndex(idx);
       pendingHighlightRef.current = null;
     }
@@ -473,10 +484,12 @@ const CopilotPanel: React.FC = () => {
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
+          scrollOnSelectChange.current = true;
           setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1));
           break;
         case 'ArrowUp':
           e.preventDefault();
+          scrollOnSelectChange.current = true;
           setSelectedIndex((i) => Math.max(i - 1, 0));
           break;
         case 'Enter':
