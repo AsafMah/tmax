@@ -172,6 +172,11 @@ const CopilotPanel: React.FC = () => {
   // so users who explicitly turn it off stay off across restarts.
   const groupByRepo = (config as any)?.aiGroupByRepo !== false;
   const repoKey = (s: CopilotSessionSummary): string => shortPath(s.cwd || '') || '(no repo)';
+  // Pinned sessions get their own top-level pseudo-group so they sit above
+  // every repo group, regardless of which repo they belong to.
+  const PINNED_GROUP = '📌 Pinned';
+  const effectiveRepoKey = (s: CopilotSessionSummary): string =>
+    pinnedSessions[s.id] ? PINNED_GROUP : repoKey(s);
 
   // Auto-collapse all groups on the transition from off → on, AND on initial
   // mount when grouping is on (since the default is now "on"). Users asked
@@ -238,11 +243,14 @@ const CopilotPanel: React.FC = () => {
     if (!groupByRepo) return filtered;
     const groups = new Map<string, CopilotSessionSummary[]>();
     for (const s of filtered) {
-      const key = repoKey(s);
+      const key = effectiveRepoKey(s);
       const bucket = groups.get(key);
       if (bucket) bucket.push(s); else groups.set(key, [s]);
     }
     const sortedGroups = [...groups.entries()].sort(([ak, av], [bk, bv]) => {
+      // Pinned group always at the top; no-repo bucket always at the bottom.
+      if (ak === PINNED_GROUP) return -1;
+      if (bk === PINNED_GROUP) return 1;
       if (ak === '(no repo)') return 1;
       if (bk === '(no repo)') return -1;
       const aRecent = Math.max(...av.map((s) => s.lastActivityTime || 0));
@@ -250,18 +258,18 @@ const CopilotPanel: React.FC = () => {
       return bRecent - aRecent;
     });
     return sortedGroups.flatMap(([, group]) => group);
-  }, [filtered, groupByRepo]);
+  }, [filtered, groupByRepo, pinnedSessions]);
 
   // #69: counts per group key so the collapsible header can show `tmax · 3`.
   const groupSizes = useMemo(() => {
     const m = new Map<string, number>();
     if (!groupByRepo) return m;
     for (const s of displayList) {
-      const key = repoKey(s);
+      const key = effectiveRepoKey(s);
       m.set(key, (m.get(key) || 0) + 1);
     }
     return m;
-  }, [displayList, groupByRepo]);
+  }, [displayList, groupByRepo, pinnedSessions]);
 
   // Sessions that share the exact same title - automation scripts often spawn
   // many `claude` runs with the same initial prompt, making them visually
@@ -650,8 +658,8 @@ const CopilotPanel: React.FC = () => {
           // Left accent border mirrors the pane's color so you can match
           // sessions with their open pane at a glance.
           const itemStyle = paneColor ? { borderLeft: `3px solid ${paneColor}` } : undefined;
-          const currentRepo = repoKey(session);
-          const prevRepo = index > 0 ? repoKey(displayList[index - 1]) : null;
+          const currentRepo = effectiveRepoKey(session);
+          const prevRepo = index > 0 ? effectiveRepoKey(displayList[index - 1]) : null;
           const showGroupHeader = groupByRepo && currentRepo !== prevRepo;
           const isCollapsed = groupByRepo && collapsedGroups.has(currentRepo);
 
@@ -712,16 +720,6 @@ const CopilotPanel: React.FC = () => {
                     />
                   ) : (
                     <span className="ai-session-name" title={title}>
-                      {pinnedSessions[session.id] && (
-                        <span
-                          className="ai-session-pin"
-                          title="Pinned (right-click to unpin)"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            useTerminalStore.getState().togglePinSession(session.id);
-                          }}
-                        >📌</span>
-                      )}
                       {title}
                       {dupTitles.has(title) && (
                         <span className="ai-session-iddup" title={session.id}> · {session.id.slice(0, 6)}</span>
@@ -761,6 +759,17 @@ const CopilotPanel: React.FC = () => {
                   )}
                 </div>
               </div>
+              {/* Pin / Unpin toggle - always available, hover-visible unless pinned */}
+              <button
+                className={`ai-session-lifecycle-btn ai-session-pin-btn${pinnedSessions[session.id] ? ' pinned' : ''}`}
+                title={pinnedSessions[session.id] ? 'Unpin from top' : 'Pin to top'}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  useTerminalStore.getState().togglePinSession(session.id);
+                }}
+              >
+                📌
+              </button>
               {/* Complete button (Active tab) or Reactivate button (Completed/Old tabs) */}
               {lifecycleTab === 'active' && (
                 <button

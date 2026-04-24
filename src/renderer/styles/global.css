@@ -3315,16 +3315,6 @@ select.settings-input {
   opacity: 0.8;
 }
 
-.ai-session-pin {
-  display: inline-block;
-  margin-right: 4px;
-  font-size: 10px;
-  cursor: pointer;
-  opacity: 0.9;
-  transition: transform 0.1s;
-}
-.ai-session-pin:hover { transform: scale(1.15); opacity: 1; }
-
 .ai-session-cwd {
   font-size: 10px;
   color: var(--text-secondary);
@@ -3630,6 +3620,19 @@ select.settings-input {
 
 .ai-session-complete-btn:hover {
   background: rgba(166, 227, 161, 0.15);
+}
+
+/* Pin button sits to the left of the complete/reactivate button. Stays
+   visible (opacity 1) when the session is already pinned so the user
+   always knows about it without hovering. */
+.ai-session-pin-btn {
+  right: 40px;
+}
+.ai-session-pin-btn.pinned {
+  opacity: 1;
+}
+.ai-session-pin-btn:hover {
+  background: rgba(137, 180, 250, 0.15);
 }
 
 .ai-session-reactivate-btn {
