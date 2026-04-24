@@ -638,7 +638,9 @@ async function fetchGcCounter(path) {
     const r = await fetch(url, { cache: 'no-store' });
     if (!r.ok) return null;
     const j = await r.json();
-    return typeof j.count === 'number' ? j.count : null;
+    // GoatCounter returns count as a string, e.g. {"count":"42","count_unique":"42"}
+    const n = Number(j.count);
+    return Number.isFinite(n) ? n : null;
   } catch {
     return null;
   }
