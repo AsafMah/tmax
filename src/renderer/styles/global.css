@@ -611,9 +611,10 @@ html.transparency-active .input-dialog {
   border-bottom-color: rgba(255, 255, 255, 0.15);
 }
 
-/* Sticky banner under the pane title showing the most recent user prompt
-   sent to the AI session attached to this pane. Lets you see "what is this
-   agent working on right now?" without scrolling the terminal back up. */
+/* Sticky banner at the bottom of the pane (right above the AI CLI's input
+   area) showing the most recent user prompt sent to the AI session. Lets
+   you see "what is this agent working on right now?" without scrolling
+   the terminal back up. */
 .terminal-pane-latest-prompt {
   flex-shrink: 0;
   display: flex;
@@ -624,7 +625,7 @@ html.transparency-active .input-dialog {
   color: var(--text-primary);
   background: var(--bg-secondary);
   padding: 3px 10px;
-  border-bottom: 1px solid var(--border-color);
+  border-top: 1px solid var(--border-color);
   opacity: 0.8;
   z-index: 4;
   font-style: italic;

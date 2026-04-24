@@ -1102,15 +1102,15 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
           >&#128065;</button>
         </div>
       )}
+      {showDiag && <DiagnosticsOverlay terminalId={terminalId} diagRef={diagRef} mainDiag={mainDiagRef.current} logPath={logPathRef.current} onClose={() => setShowDiag(false)} />}
+      <div ref={containerRef} className="xterm-container" />
+      {bgTint && <div className="terminal-color-overlay" style={{ background: bgTint + '18' }} />}
       {latestPrompt && (
         <div className="terminal-pane-latest-prompt" title={latestPrompt}>
           <span className="terminal-pane-latest-prompt-label">›</span>
           <span className="terminal-pane-latest-prompt-text">{latestPrompt}</span>
         </div>
       )}
-      {showDiag && <DiagnosticsOverlay terminalId={terminalId} diagRef={diagRef} mainDiag={mainDiagRef.current} logPath={logPathRef.current} onClose={() => setShowDiag(false)} />}
-      <div ref={containerRef} className="xterm-container" />
-      {bgTint && <div className="terminal-color-overlay" style={{ background: bgTint + '18' }} />}
     </div>
   );
 };
