@@ -14,7 +14,7 @@ import { ClaudeCodeSessionMonitor } from './claude-code-session-monitor';
 import { ClaudeCodeSessionWatcher } from './claude-code-session-watcher';
 import { WslSessionManager } from './wsl-session-manager';
 import { VersionChecker } from './version-checker';
-import { initDiagLogger, getDiagLogPath, diagLog } from './diag-logger';
+import { initDiagLogger, getDiagLogPath, diagLog, sanitize } from './diag-logger';
 import { GitDiffService, resolveGitRoot } from './git-diff-service';
 import { listWorktrees, createWorktree, deleteWorktree, getBranches } from './git-worktree-service';
 import type { DiffMode } from '../shared/diff-types';
@@ -421,7 +421,32 @@ function registerIpcHandlers(): void {
     shell.openPath(configPath);
   });
 
+  // Extensions that can execute code when opened via shell.openPath. Opens
+  // of documents / URLs / directories still pass through - this is a tight
+  // blocklist, not an allowlist. Defense-in-depth against a compromised
+  // renderer: even though the renderer already has PTY access, narrowing
+  // this surface still kills the "one IPC call → arbitrary exe launch"
+  // shortcut.
+  const DANGEROUS_OPEN_EXTENSIONS = new Set([
+    // Windows executables and shell scripts
+    '.exe', '.bat', '.cmd', '.ps1', '.msi', '.com', '.scr', '.pif',
+    // Script hosts and shortcuts
+    '.lnk', '.hta', '.vbs', '.vbe', '.jse', '.wsf', '.wsh',
+    // Config / snap-ins that can run code
+    '.reg', '.msc', '.cpl', '.chm',
+    // Unix-ish executables and bundles
+    '.sh', '.app', '.command',
+    // Auto-executing archives / scripts
+    '.jar', '.py', '.pyw',
+  ]);
+
   ipcMain.handle(IPC.OPEN_PATH, (_event, filePath: string) => {
+    if (typeof filePath !== 'string' || !filePath) return;
+    const ext = path.extname(filePath).toLowerCase();
+    if (DANGEROUS_OPEN_EXTENSIONS.has(ext)) {
+      diagLog('security:open-path-blocked', { ext, path: sanitize(filePath) });
+      return;
+    }
     shell.openPath(filePath);
   });
 
