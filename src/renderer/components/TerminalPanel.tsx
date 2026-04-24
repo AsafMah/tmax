@@ -757,6 +757,19 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
     });
     resizeObserver.observe(containerRef.current);
 
+    // Suppress right-button mousedown/mouseup in capture phase so xterm.js
+    // doesn't forward SGR mouse events to the pty. Otherwise TUI apps with
+    // mouse reporting enabled (e.g. Claude Code) receive the right-click on
+    // top of our own paste, causing a visible double-paste.
+    const handleRightMouseButton = (e: MouseEvent) => {
+      if (e.button === 2) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    containerRef.current.addEventListener('mousedown', handleRightMouseButton, true);
+    containerRef.current.addEventListener('mouseup', handleRightMouseButton, true);
+
     // Right-click: copy if selection, paste if no selection
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
@@ -797,6 +810,8 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
         textareaEl.removeEventListener('blur', handleBlur);
       }
       containerEl.removeEventListener('contextmenu', handleContextMenu, true);
+      containerEl.removeEventListener('mousedown', handleRightMouseButton, true);
+      containerEl.removeEventListener('mouseup', handleRightMouseButton, true);
       titleDisposable.dispose();
       unregisterTerminal(terminalId);
       term.dispose();
