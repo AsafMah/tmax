@@ -165,6 +165,46 @@ const DetachedApp: React.FC<DetachedAppProps> = ({ terminalId }) => {
       });
       resizeObserver.observe(containerRef.current!);
 
+      // Right-click: copy if selection, paste otherwise. Mirrors
+      // TerminalPanel so detached windows match main window behaviour.
+      const handleContextMenu = (e: MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        if (term.hasSelection()) {
+          window.terminalAPI.clipboardWrite(term.getSelection());
+          term.clearSelection();
+          return;
+        }
+        if (window.terminalAPI.clipboardHasImage()) {
+          window.terminalAPI.clipboardSaveImage().then((filePath: string) => {
+            window.terminalAPI.writePty(terminalId, filePath);
+          });
+          return;
+        }
+        const html = window.terminalAPI.clipboardReadHTML();
+        const linkUrl = extractLinkFromHtml(html);
+        let text = linkUrl || window.terminalAPI.clipboardRead();
+        if (text && !linkUrl && /^https?:\/\/[^\s]+$/.test(text.trim())) {
+          text = unwrapSafelinks(text.trim());
+        }
+        if (text) window.terminalAPI.writePty(terminalId, text);
+      };
+      // Block right-button mousedown/mouseup in capture so xterm.js can't
+      // forward SGR mouse events to the pty. Otherwise a TUI with mouse
+      // reporting on would see the right-click on top of our paste and the
+      // user would see a double paste (issue #72 variant).
+      const handleRightMouseButton = (e: MouseEvent) => {
+        if (e.button === 2) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      };
+      const containerEl = containerRef.current!;
+      containerEl.addEventListener('contextmenu', handleContextMenu, true);
+      containerEl.addEventListener('mousedown', handleRightMouseButton, true);
+      containerEl.addEventListener('mouseup', handleRightMouseButton, true);
+
       term.focus();
 
       cleanup = () => {
@@ -173,6 +213,9 @@ const DetachedApp: React.FC<DetachedAppProps> = ({ terminalId }) => {
         unsubscribePtyData();
         unsubscribePtyExit();
         titleDisposable.dispose();
+        containerEl.removeEventListener('contextmenu', handleContextMenu, true);
+        containerEl.removeEventListener('mousedown', handleRightMouseButton, true);
+        containerEl.removeEventListener('mouseup', handleRightMouseButton, true);
         term.dispose();
       };
     })();
