@@ -1,7 +1,28 @@
 import { IPty, spawn } from 'node-pty';
-import { existsSync, statSync } from 'fs';
-import { homedir } from 'os';
+import { existsSync, statSync, writeFileSync } from 'fs';
+import { homedir, tmpdir } from 'os';
+import { join } from 'path';
 import { diagLog, sanitize } from './diag-logger';
+
+// Dot-sourced by each pwsh session so the full snippet isn't echoed into the terminal.
+// Rewritten once per app launch (stable filename, overwrite).
+const PS_INTEGRATION_PATH = join(tmpdir(), 'tmax-pwsh-integration.ps1');
+const PS_INTEGRATION_CONTENT =
+  '$__tmax_origPrompt = $function:prompt\n' +
+  'function prompt {\n' +
+  '  $p = $__tmax_origPrompt.Invoke()\n' +
+  '  $d = $executionContext.SessionState.Path.CurrentLocation.Path\n' +
+  '  $u = "file:///" + ($d -replace "\\\\","/")\n' +
+  '  [Console]::Write("`e]7;$u`a")\n' +
+  '  return $p\n' +
+  '}\n';
+let psIntegrationAvailable = false;
+try {
+  writeFileSync(PS_INTEGRATION_PATH, PS_INTEGRATION_CONTENT, 'utf8');
+  psIntegrationAvailable = true;
+} catch (err) {
+  diagLog('pty:ps-integration-init-failed', { error: String(err) });
+}
 
 export interface PtyCreateOpts {
   id: string;
@@ -123,22 +144,10 @@ export class PtyManager {
     diagLog('pty:created', { id: opts.id, pid: ptyProcess.pid, shell: opts.shellPath, cwd });
 
     // Inject shell integration for PowerShell (needs to write to terminal)
-    if (shellName.includes('pwsh') || shellName.includes('powershell')) {
-      // PowerShell: append to the prompt function to emit OSC 7 (file URI)
-      const psSnippet = [
-        // Wrap in a function to avoid polluting the prompt output
-        '$__tmax_origPrompt = $function:prompt;',
-        'function prompt { ',
-        '  $p = $__tmax_origPrompt.Invoke();',
-        '  $d = $executionContext.SessionState.Path.CurrentLocation.Path;',
-        '  $u = "file:///" + ($d -replace "\\\\","/");',
-        '  [Console]::Write("`e]7;$u`a");',
-        '  return $p',
-        '}',
-      ].join(' ');
-      // Send as a single line + Enter, then clear screen to hide the init noise
-      setTimeout(() => ptyProcess.write(psSnippet + '\r'), 200);
-      setTimeout(() => ptyProcess.write('cls\r'), 400);
+    if ((shellName.includes('pwsh') || shellName.includes('powershell')) && psIntegrationAvailable) {
+      // Dot-source a pre-written script so only a short line is echoed, then clear it.
+      const escapedPath = PS_INTEGRATION_PATH.replace(/'/g, "''");
+      setTimeout(() => ptyProcess.write(`. '${escapedPath}'; cls\r`), 200);
     }
     // CMD: relies on prompt regex fallback (no hook mechanism)
 

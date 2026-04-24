@@ -61,10 +61,31 @@ export interface AppConfig {
 function findPwsh(): string | null {
   if (process.platform !== 'win32') return null;
   const fs = require('fs');
-  // Common install locations for PowerShell 7+
+
+  // 1) PATH lookup: covers winget, Program Files, scoop shim, chocolatey, custom installs
+  try {
+    const { execFileSync } = require('child_process');
+    const out = execFileSync('where.exe', ['pwsh.exe'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      windowsHide: true,
+    }) as string;
+    const firstLine = out.split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 0);
+    // Skip MSIX WindowsApps stub - it's an execution alias that node-pty can't spawn reliably
+    if (firstLine && fs.existsSync(firstLine) && !/\\WindowsApps\\/i.test(firstLine)) {
+      return firstLine;
+    }
+  } catch {
+    // where.exe not found or no match on PATH
+  }
+
+  // 2) Well-known install locations as fallback
   const candidates = [
     process.env.ProgramFiles && `${process.env.ProgramFiles}\\PowerShell\\7\\pwsh.exe`,
+    process.env.ProgramW6432 && `${process.env.ProgramW6432}\\PowerShell\\7\\pwsh.exe`,
+    process.env['ProgramFiles(x86)'] && `${process.env['ProgramFiles(x86)']}\\PowerShell\\7\\pwsh.exe`,
     'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+    process.env.ProgramFiles && `${process.env.ProgramFiles}\\PowerShell\\7-preview\\pwsh.exe`,
   ];
   for (const p of candidates) {
     if (p && fs.existsSync(p)) return p;
@@ -115,6 +136,8 @@ const defaultConfig: AppConfig = {
   shells: platformShells.shells,
   defaultShellId: platformShells.defaultShellId,
   keybindings: [
+    { action: 'createTerminal', key: 'Ctrl+T' },
+    { action: 'closeTerminal', key: 'Ctrl+W' },
     { action: 'createTerminal', key: 'Ctrl+Shift+N' },
     { action: 'closeTerminal', key: 'Ctrl+Shift+W' },
     { action: 'focusUp', key: 'Shift+ArrowUp' },
@@ -177,6 +200,7 @@ export class ConfigStore {
       defaults: defaultConfig,
     });
     this.migratePwsh();
+    this.migrateKeybindings();
   }
 
   /** If PowerShell 7 is installed but not in the saved shells, inject it at the top */
@@ -189,6 +213,18 @@ export class ConfigStore {
     shells.unshift({ id: 'pwsh', name: 'PowerShell 7', path: pwshPath, args: ['-NoLogo'] });
     this.store.set('shells', shells);
     this.store.set('defaultShellId', 'pwsh');
+  }
+
+  /** Inject Ctrl+T/Ctrl+W bindings for existing users if those keys aren't already taken */
+  private migrateKeybindings(): void {
+    const bindings = this.store.get('keybindings') as Keybinding[];
+    const boundKeys = new Set(bindings.map((b) => b.key));
+    const additions: Keybinding[] = [];
+    if (!boundKeys.has('Ctrl+T')) additions.push({ action: 'createTerminal', key: 'Ctrl+T' });
+    if (!boundKeys.has('Ctrl+W')) additions.push({ action: 'closeTerminal', key: 'Ctrl+W' });
+    if (additions.length > 0) {
+      this.store.set('keybindings', [...additions, ...bindings]);
+    }
   }
 
   get<K extends keyof AppConfig>(key: K): AppConfig[K] {
