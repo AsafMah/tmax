@@ -1136,6 +1136,14 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
           {latestPromptTime && (
             <span className="terminal-pane-latest-prompt-time">{relativeTime(latestPromptTime)}</span>
           )}
+          <button
+            className="terminal-pane-latest-prompt-btn"
+            title="Show all prompts (Ctrl+Shift+K)"
+            onClick={(e) => {
+              e.stopPropagation();
+              useTerminalStore.getState().showPromptsForTerminal(terminalId);
+            }}
+          >⋯</button>
         </div>
       )}
     </div>

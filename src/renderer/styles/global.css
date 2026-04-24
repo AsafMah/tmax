@@ -659,6 +659,28 @@ html.transparency-active .input-dialog {
   margin-left: 8px;
 }
 
+.terminal-pane-latest-prompt-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-style: normal;
+  line-height: 1;
+  padding: 0 6px;
+  margin-left: 6px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.terminal-pane-latest-prompt-btn:hover {
+  opacity: 1;
+  background: var(--bg-tertiary, rgba(255, 255, 255, 0.08));
+  color: var(--text-primary);
+}
+
 .terminal-diff-btn {
   flex-shrink: 0;
   background: transparent;
