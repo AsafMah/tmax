@@ -1078,8 +1078,12 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
       useTerminalStore.getState().addToast(
         'Last prompt not in scrollback - TUI agents (Claude Code, Copilot CLI) repaint over their input, so the original characters are gone. Use the ⋯ button for the prompt history.',
       );
+      return;
     }
-    requestAnimationFrame(() => terminalRef.current?.focus());
+    // Deliberately don't focus the terminal here. Calling term.focus()
+    // scrolls the viewport back to the cursor (i.e. the bottom of the
+    // buffer), undoing the search's scroll-to-match. The user can click
+    // the terminal themselves when they want to type.
   }, [latestPrompt]);
 
   const className = `terminal-panel${isFocused ? ' focused' : ''}`;
