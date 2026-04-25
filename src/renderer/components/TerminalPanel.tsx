@@ -1047,6 +1047,10 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
   // the prompt text and scroll/highlight it. Mirrors PromptsDialog.jumpToPrompt:
   // try progressively shorter prefixes so wrapped or re-rendered prompts still
   // find a match. Walks backward (findPrevious) since prompts live in scrollback.
+  // Caveat: TUI agents (Claude Code, Copilot CLI) repaint the user-prompt line
+  // many times during a turn - by the time you click, the original prompt
+  // characters are gone from xterm's buffer even though the .jsonl still
+  // remembers them. We surface that as a toast instead of failing silently.
   const jumpToLatestPrompt = useCallback(() => {
     const text = (latestPrompt || '').trim();
     const search = searchAddonRef.current;
@@ -1059,11 +1063,22 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
         matchBackground: '#585b70',
         activeMatchBackground: '#89b4fa',
       },
+      caseSensitive: false,
     };
     const tryQuery = (q: string) => !!q && search.findPrevious(q, opts);
-    tryQuery(text.slice(0, 120)) ||
+    // Try several progressively-relaxed prefixes. A 30-char prefix usually
+    // still matches a unique point in the buffer even if the full prompt
+    // was wrapped, indented, or had leading TUI markup like '> '.
+    const found =
+      tryQuery(text.slice(0, 120)) ||
       tryQuery(text.slice(0, 60)) ||
-      tryQuery(text.slice(0, 30));
+      tryQuery(text.slice(0, 30)) ||
+      tryQuery(text.slice(0, 15));
+    if (!found) {
+      useTerminalStore.getState().addToast(
+        'Last prompt not in scrollback - TUI agents (Claude Code, Copilot CLI) repaint over their input, so the original characters are gone. Use the ⋯ button for the prompt history.',
+      );
+    }
     requestAnimationFrame(() => terminalRef.current?.focus());
   }, [latestPrompt]);
 
