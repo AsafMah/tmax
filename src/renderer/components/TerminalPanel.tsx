@@ -1043,6 +1043,30 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
     terminalRef.current?.focus();
   }, []);
 
+  // Click-to-jump on the last-prompt banner: search the terminal buffer for
+  // the prompt text and scroll/highlight it. Mirrors PromptsDialog.jumpToPrompt:
+  // try progressively shorter prefixes so wrapped or re-rendered prompts still
+  // find a match. Walks backward (findPrevious) since prompts live in scrollback.
+  const jumpToLatestPrompt = useCallback(() => {
+    const text = (latestPrompt || '').trim();
+    const search = searchAddonRef.current;
+    if (!search || !text) return;
+    search.clearDecorations();
+    const opts = {
+      decorations: {
+        matchOverviewRuler: '#888',
+        activeMatchColorOverviewRuler: '#fff',
+        matchBackground: '#585b70',
+        activeMatchBackground: '#89b4fa',
+      },
+    };
+    const tryQuery = (q: string) => !!q && search.findPrevious(q, opts);
+    tryQuery(text.slice(0, 120)) ||
+      tryQuery(text.slice(0, 60)) ||
+      tryQuery(text.slice(0, 30));
+    requestAnimationFrame(() => terminalRef.current?.focus());
+  }, [latestPrompt]);
+
   const className = `terminal-panel${isFocused ? ' focused' : ''}`;
 
   return (
@@ -1168,9 +1192,15 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
       <div ref={containerRef} className="xterm-container" />
       {bgTint && <div className="terminal-color-overlay" style={{ background: bgTint + '18' }} />}
       {latestPrompt && (
-        <div className="terminal-pane-latest-prompt" title={latestPrompt}>
+        <div className="terminal-pane-latest-prompt" title={`${latestPrompt}\n\nClick to jump to this prompt in the buffer`}>
           <span className="terminal-pane-latest-prompt-label">last prompt:</span>
-          <span className="terminal-pane-latest-prompt-text">{latestPrompt}</span>
+          <span
+            className="terminal-pane-latest-prompt-text terminal-pane-latest-prompt-jump"
+            onClick={(e) => {
+              e.stopPropagation();
+              jumpToLatestPrompt();
+            }}
+          >{latestPrompt}</span>
           {latestPromptTime && (
             <span className="terminal-pane-latest-prompt-time">{relativeTime(latestPromptTime)}</span>
           )}

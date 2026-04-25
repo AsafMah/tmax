@@ -650,6 +650,14 @@ html.transparency-active .input-dialog {
   flex: 1;
 }
 
+.terminal-pane-latest-prompt-jump {
+  cursor: pointer;
+}
+.terminal-pane-latest-prompt-jump:hover {
+  color: var(--accent, #7aa2f7);
+  text-decoration: underline;
+}
+
 .terminal-pane-latest-prompt-time {
   flex-shrink: 0;
   color: var(--text-secondary);
