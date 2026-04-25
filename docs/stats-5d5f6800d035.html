@@ -68,7 +68,7 @@
 </div>
 
 <div class="chart-section" id="gcPlatformsSection" style="display:none;">
-  <div class="chart-title">Download clicks by platform</div>
+  <div class="chart-title">Download clicks by platform <span style="font-weight:normal;font-size:13px;color:var(--fg2);">(from landing page)</span></div>
   <div class="summary" id="gcPlatforms" style="margin-bottom:0;"></div>
 </div>
 
@@ -710,15 +710,15 @@ const PLATFORMS = [
     const total = counts.reduce((s, c) => s + (c ? c.total : 0), 0);
     return { label: p.label, total };
   }));
-  const anyPlatform = perPlatform.some((p) => p.total > 0);
-  if (anyPlatform) {
-    const section = document.getElementById('gcPlatformsSection');
-    const container = document.getElementById('gcPlatforms');
-    section.style.display = '';
-    container.innerHTML = perPlatform
-      .map((p) => `<div class="stat-card"><div class="label">${p.label}</div><div class="value">${p.total.toLocaleString()}</div></div>`)
-      .join('');
-  }
+  // Always render the section, even when all counters are 0, so it's clear
+  // the breakdown is being tracked (just nobody has clicked the per-platform
+  // path yet). Old clicks before the per-platform-event fix won't be in here.
+  const section = document.getElementById('gcPlatformsSection');
+  const container = document.getElementById('gcPlatforms');
+  section.style.display = '';
+  container.innerHTML = perPlatform
+    .map((p) => `<div class="stat-card"><div class="label">${p.label}</div><div class="value">${p.total.toLocaleString()}</div></div>`)
+    .join('');
 })();
 
 async function load() {
