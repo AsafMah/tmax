@@ -129,7 +129,13 @@ export function parseClaudeCodeSession(filePath: string): ClaudeCodeParsedSessio
     fs.closeSync(fd);
     fd = undefined;
 
-    const text = buffer.toString('utf-8');
+    // Only process through the last '\n'. Bytes past that are a partial
+    // write mid-stream - processing them would JSON.parse-fail AND advance
+    // byteOffset past the half-line, so the remaining half (arriving next
+    // poll) would be parsed without its start and lost too.
+    const lastNewline = buffer.lastIndexOf(0x0a);
+    const completeBytes = lastNewline === -1 ? 0 : lastNewline + 1;
+    const text = buffer.slice(0, completeBytes).toString('utf-8');
     const lines = text.split('\n').filter((l) => l.trim());
 
     const state: CacheEntry = cached
@@ -157,7 +163,7 @@ export function parseClaudeCodeSession(filePath: string): ClaudeCodeParsedSessio
       processLine(line, state);
     }
 
-    state.byteOffset = fileSize;
+    state.byteOffset = startOffset + completeBytes;
     cache.set(filePath, state);
 
     return deriveResult(state, stat.mtimeMs);

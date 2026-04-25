@@ -66,7 +66,11 @@ export function parseSessionEvents(eventsFilePath: string): ParsedSessionEvents 
     fs.closeSync(fileHandle);
     fileHandle = undefined;
 
-    const newText = buffer.toString('utf-8');
+    // Only process through the last '\n' so a partial-write tail isn't split
+    // across two polls (both halves would fail to JSON.parse and be lost).
+    const lastNewline = buffer.lastIndexOf(0x0a);
+    const completeBytes = lastNewline === -1 ? 0 : lastNewline + 1;
+    const newText = buffer.slice(0, completeBytes).toString('utf-8');
     const lines = newText.split('\n').filter((l) => l.trim().length > 0);
 
     const newEvents: EventRecord[] = [];
@@ -80,7 +84,7 @@ export function parseSessionEvents(eventsFilePath: string): ParsedSessionEvents 
     }
 
     const allEvents = [...existingEvents, ...newEvents];
-    cache.set(eventsFilePath, { byteOffset: fileSize, events: allEvents });
+    cache.set(eventsFilePath, { byteOffset: startOffset + completeBytes, events: allEvents });
 
     return deriveState(allEvents);
   } catch {
