@@ -76,6 +76,7 @@ const DEFAULT_BINDINGS: Record<string, string> = {
   'Ctrl+-': 'zoomOut',
   'Ctrl+0': 'zoomReset',
   'Ctrl+Shift+F': 'toggleFocusMode',
+  'Ctrl+Alt+F': 'toggleFloat',
   'Ctrl+Shift+A': 'toggleBroadcastMode',
   'Ctrl+Shift+H': 'toggleDormant',
   'Ctrl+Shift+E': 'equalizeLayout',

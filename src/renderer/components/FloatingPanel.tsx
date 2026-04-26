@@ -13,22 +13,12 @@ const MIN_HEIGHT = 150;
 const FloatingPanel: React.FC<FloatingPanelProps> = ({ panel }) => {
   const panelRef = useRef<HTMLDivElement>(null);
   const focusedTerminalId = useTerminalStore((s) => s.focusedTerminalId);
-  const terminals = useTerminalStore((s) => s.terminals);
   const isFocused = focusedTerminalId === panel.terminalId;
-  const terminal = terminals.get(panel.terminalId);
   const maximized = panel.maximized ?? false;
   const savedBounds = useRef({ x: 200, y: 150, width: 600, height: 400 });
 
   const handleFocus = useCallback(() => {
     useTerminalStore.getState().setFocus(panel.terminalId);
-  }, [panel.terminalId]);
-
-  const handleDock = useCallback(() => {
-    useTerminalStore.getState().moveToTiling(panel.terminalId);
-  }, [panel.terminalId]);
-
-  const handleClose = useCallback(() => {
-    useTerminalStore.getState().closeTerminal(panel.terminalId);
   }, [panel.terminalId]);
 
   const handleMaximize = useCallback(() => {
@@ -46,8 +36,11 @@ const FloatingPanel: React.FC<FloatingPanelProps> = ({ panel }) => {
   // Title bar drag
   const handleTitleBarMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      // Ignore if clicking buttons
-      if ((e.target as HTMLElement).closest('button')) return;
+      // Ignore if clicking interactive children. The per-pane title bar
+      // hosts: ⋯ menu button, status dot (click closes), rename input
+      // (active during rename), and the title text (double-click renames).
+      const t = e.target as HTMLElement;
+      if (t.closest('button') || t.closest('input') || t.closest('.status-dot-container')) return;
 
       e.preventDefault();
       handleFocus();
@@ -176,25 +169,16 @@ const FloatingPanel: React.FC<FloatingPanelProps> = ({ panel }) => {
         onMouseDown={(e) => handleResizeMouseDown(e, { bottom: true, right: true })}
       />
 
-      {/* Title bar */}
-      <div className="title-bar" onMouseDown={handleTitleBarMouseDown} onDoubleClick={handleMaximize}>
-        <span className="title-text">
-          {terminal?.title ?? 'Terminal'}
-        </span>
-        <button onClick={handleMaximize} title={maximized ? 'Restore' : 'Maximize'}>
-          {maximized ? '\u2750' : '\u2610'}
-        </button>
-        <button onClick={handleDock} title="Dock to tiling layout">
-          &#9634;
-        </button>
-        <button onClick={handleClose} title="Close terminal">
-          &#10005;
-        </button>
-      </div>
-
-      {/* Terminal content */}
+      {/* Terminal content. The per-pane title bar inside TerminalPanel is
+          its own title + \u22ef menu (with Restore-to-grid and Close), and we
+          attach drag + maximize-toggle handlers via the floatTitleBar prop
+          so the user only sees ONE title bar in float mode instead of two
+          stacked. */}
       <div className="panel-content">
-        <TerminalPanel terminalId={panel.terminalId} />
+        <TerminalPanel
+          terminalId={panel.terminalId}
+          floatTitleBar={{ onMouseDown: handleTitleBarMouseDown, onDoubleClick: handleMaximize }}
+        />
       </div>
     </div>
   );

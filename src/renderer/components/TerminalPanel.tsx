@@ -188,9 +188,17 @@ const DiagnosticsOverlay: React.FC<DiagnosticsOverlayProps> = ({ terminalId, dia
 
 interface TerminalPanelProps {
   terminalId: string;
+  // Drag/maximize handlers for when this pane is rendered inside a
+  // FloatingPanel. The float wrapper hands these in so the per-pane title
+  // bar can act as the float window's title bar (drag handle + maximize on
+  // double-click) - removing the need for a second bar above it.
+  floatTitleBar?: {
+    onMouseDown: (e: React.MouseEvent) => void;
+    onDoubleClick: (e: React.MouseEvent) => void;
+  };
 }
 
-const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
+const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId, floatTitleBar }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -1294,8 +1302,10 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
       )}
       {title && (
         <div
-          className="terminal-pane-title"
+          className={`terminal-pane-title${floatTitleBar ? ' float-titlebar' : ''}`}
           style={bgTint ? { background: bgTint + (isFocused ? '66' : '33') } : undefined}
+          onMouseDown={floatTitleBar?.onMouseDown}
+          onDoubleClick={floatTitleBar?.onDoubleClick}
         >
           <div
             className="status-dot-container"
@@ -1344,7 +1354,11 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
           ) : (
             <span
               className="terminal-pane-title-text"
-              onDoubleClick={() => {
+              onDoubleClick={(e) => {
+                // In float mode the parent has its own dblclick handler
+                // (maximize-toggle); we don't want both rename AND maximize
+                // on a single dblclick.
+                e.stopPropagation();
                 setRenameValue(title || '');
                 setIsRenamingPane(true);
               }}

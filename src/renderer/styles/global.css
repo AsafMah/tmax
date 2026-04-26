@@ -1016,47 +1016,13 @@ html.transparency-active .input-dialog {
   border-color: var(--focus-border);
 }
 
-.floating-panel .title-bar {
-  height: 24px;
-  min-height: 24px;
-  background: var(--bg-secondary);
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  padding: 0 8px;
+/* In float mode, the per-pane title bar (.terminal-pane-title) acts as
+   the float window's drag handle. Show a move cursor over the empty drag
+   area; interactive children (.terminal-pane-menu-btn, status dot, title
+   text) keep their own cursors via specificity. */
+.terminal-pane-title.float-titlebar {
   cursor: move;
   user-select: none;
-  gap: 6px;
-}
-
-.floating-panel .title-bar .title-text {
-  flex: 1;
-  font-size: 12px;
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.floating-panel .title-bar button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-radius: 3px;
-  font-size: 12px;
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-.floating-panel .title-bar button:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary);
 }
 
 .floating-panel .panel-content {
