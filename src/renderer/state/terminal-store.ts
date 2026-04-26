@@ -544,8 +544,9 @@ interface TerminalStore {
   toastNotifications: Array<{ id: string; message: string; timestamp: number }>;
   copilotSearchQuery: string;
   selectedCopilotSessionId: string | null;
-  // Prompts dialog state
-  promptsDialogRequest: { terminalId: TerminalId } | null;
+  // Prompts dialog state. Either terminalId (for the per-pane Ctrl+Shift+K
+  // shortcut) or sessionId (for opening from the session summary popover).
+  promptsDialogRequest: { terminalId?: TerminalId; sessionId?: string } | null;
   // AI session summary popover - holds the session ID that should be shown.
   sessionSummaryRequest: string | null;
   // Diff review state
@@ -651,6 +652,7 @@ interface TerminalStore {
   resumeAllSessions: () => void;
   // Prompts dialog action
   showPromptsForTerminal: (terminalId: TerminalId) => void;
+  showPromptsForSession: (sessionId: string) => void;
   clearPromptsDialogRequest: () => void;
   showSessionSummary: (sessionId: string) => void;
   clearSessionSummary: () => void;
@@ -2265,6 +2267,9 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
   // ── Prompts dialog actions ─────────────────────────────────────────
   showPromptsForTerminal: (terminalId: TerminalId) => {
     set({ promptsDialogRequest: { terminalId } });
+  },
+  showPromptsForSession: (sessionId: string) => {
+    set({ promptsDialogRequest: { sessionId } });
   },
   clearPromptsDialogRequest: () => {
     set({ promptsDialogRequest: null });

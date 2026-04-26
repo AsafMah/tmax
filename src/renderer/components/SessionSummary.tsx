@@ -208,6 +208,17 @@ const SessionSummary: React.FC = () => {
           <div className="session-summary-header-actions">
             <button
               className="session-summary-copy"
+              onClick={() => {
+                useTerminalStore.getState().showPromptsForSession(sessionId);
+                close();
+              }}
+              title="Show full prompt history"
+              aria-label="Show full prompt history"
+            >
+              💬 Show prompts
+            </button>
+            <button
+              className="session-summary-copy"
               onClick={onCopy}
               title="Copy summary to clipboard"
               aria-label="Copy summary to clipboard"

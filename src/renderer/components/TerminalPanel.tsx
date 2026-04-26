@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useCallback, useState, useReducer } from 'react';
+import ReactDOM from 'react-dom';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
@@ -220,6 +221,11 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
   );
   const aiResumeCommandRef = useRef<string>('');
   const aiSessionStartedRef = useRef(false);
+  // Buffer the user's first typed command so we can use it as the pane title
+  // when the shell's OSC title is just "cmd.exe" / "pwsh.exe" / "bash" -
+  // those generic names tell you nothing about what's actually running here.
+  const firstCmdBufferRef = useRef<string>('');
+  const firstCmdSavedRef = useRef(false);
   const wslPromptCleanupRef = useRef<(() => void) | null>(null);
   // Tracks signals that mean "an app is drawing its own cursor"; either one
   // being on is enough to keep xterm's cursor hidden. See syncCursorVisibility.
@@ -626,6 +632,43 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
       diagRef.current.keystrokeCount++;
       diagRef.current.lastKeystrokeTime = Date.now();
       window.terminalAPI.diagLog('renderer:keystroke', { terminalId, bytes: data.length });
+
+      // Watch for the user's first complete command (anything before the
+      // first Enter) so we can rename the pane from a generic "cmd.exe"
+      // to something meaningful like "npx vibe-kanban". Only matters for
+      // non-AI panes; AI sessions get their title from the session summary.
+      if (!firstCmdSavedRef.current) {
+        const inst = useTerminalStore.getState().terminals.get(terminalId);
+        if (inst && !inst.aiSessionId && !inst.customTitle) {
+          for (let i = 0; i < data.length; i++) {
+            const ch = data[i];
+            const code = data.charCodeAt(i);
+            if (ch === '\r' || ch === '\n') {
+              const cmd = firstCmdBufferRef.current.trim();
+              firstCmdBufferRef.current = '';
+              if (cmd.length >= 2 && cmd.length <= 80) {
+                firstCmdSavedRef.current = true;
+                useTerminalStore.getState().renameTerminal(terminalId, cmd, true);
+                break;
+              }
+            } else if (code === 0x7f || code === 0x08) {
+              firstCmdBufferRef.current = firstCmdBufferRef.current.slice(0, -1);
+            } else if (code === 0x03) {
+              firstCmdBufferRef.current = '';
+            } else if (code === 0x1b) {
+              // Escape sequence (arrows, etc.) - skip past the rest of it
+              while (i + 1 < data.length && /[a-zA-Z~]/.test(data[i + 1]) === false) i++;
+              i++;
+            } else if (code >= 0x20 && code < 0x80) {
+              firstCmdBufferRef.current += ch;
+            }
+          }
+        } else {
+          // Pane already has an aiSessionId or a custom title - don't keep watching.
+          firstCmdSavedRef.current = true;
+        }
+      }
+
       const state = useTerminalStore.getState();
       if (state.broadcastMode) {
         for (const [id, t] of state.terminals) {
@@ -1346,7 +1389,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
               <button className="context-menu-item" onClick={() => {
                 setPaneMenuPos(null);
                 useTerminalStore.getState().showSessionSummary(aiSessionId);
-              }}>ℹ Session summary</button>
+              }}>📖 Session summary</button>
             )}
             <div className="context-menu-separator" />
             <button className="context-menu-item" onClick={() => {

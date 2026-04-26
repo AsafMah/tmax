@@ -532,23 +532,38 @@ const CopilotPanel: React.FC = () => {
   const promptsRequest = useTerminalStore((s) => s.promptsDialogRequest);
   useEffect(() => {
     if (!promptsRequest) return;
-    const { terminalId: tid } = promptsRequest;
+    const { terminalId: tid, sessionId: sidExplicit } = promptsRequest;
     const store = useTerminalStore.getState();
     store.clearPromptsDialogRequest();
-    // Find the AI session for this terminal
-    const terminal = store.terminals.get(tid);
+
     const allSessions = [...store.copilotSessions, ...store.claudeCodeSessions];
     let session: typeof allSessions[0] | undefined;
-    if (terminal?.aiSessionId) {
-      session = allSessions.find((s) => s.id === terminal.aiSessionId);
+    let matchedTerminalId: string | null = tid ?? null;
+
+    // If the request supplies a sessionId (e.g. from the session summary
+    // popover), prefer that. Otherwise resolve through the focused terminal.
+    if (sidExplicit) {
+      session = allSessions.find((s) => s.id === sidExplicit);
+      // Try to find a terminal linked to this session so the prompt-jump
+      // feature inside the dialog still works.
+      if (session && !matchedTerminalId) {
+        for (const [id, t] of store.terminals) {
+          if (t.aiSessionId === session.id) { matchedTerminalId = id; break; }
+        }
+      }
+    } else if (tid) {
+      const terminal = store.terminals.get(tid);
+      if (terminal?.aiSessionId) {
+        session = allSessions.find((s) => s.id === terminal.aiSessionId);
+      }
+      if (!session && terminal?.cwd) {
+        const cwd = terminal.cwd.replace(/\\/g, '/').toLowerCase();
+        session = allSessions
+          .filter((s) => s.cwd?.replace(/\\/g, '/').toLowerCase() === cwd)
+          .sort((a, b) => (b.lastActivityTime || 0) - (a.lastActivityTime || 0))[0];
+      }
     }
-    // Fallback: find the most recent session matching this terminal's CWD
-    if (!session && terminal?.cwd) {
-      const cwd = terminal.cwd.replace(/\\/g, '/').toLowerCase();
-      session = allSessions
-        .filter((s) => s.cwd?.replace(/\\/g, '/').toLowerCase() === cwd)
-        .sort((a, b) => (b.lastActivityTime || 0) - (a.lastActivityTime || 0))[0];
-    }
+
     if (!session) return;
     const sessionId = session.id;
     // Load prompts
@@ -560,7 +575,7 @@ const CopilotPanel: React.FC = () => {
       setPromptsDialog({
         title: summaryOverrides[sessionId] || session.summary || getTitle(session),
         prompts: prompts.length > 0 ? prompts : ['(no prompts found)'],
-        terminalId: tid,
+        terminalId: matchedTerminalId,
       });
     });
   }, [promptsRequest, summaryOverrides]);
@@ -846,7 +861,7 @@ const CopilotPanel: React.FC = () => {
             ▶ Resume session <span className="context-menu-shortcut">double-click</span>
           </button>
           <button className="context-menu-item" onClick={() => { useTerminalStore.getState().showSessionSummary(ctxMenu.session.id); setCtxMenu(null); }}>
-            ℹ View summary
+            📖 View summary
           </button>
           <button className="context-menu-item" onClick={() => handleShowPrompts(ctxMenu.session)}>
             💬 Show prompts
