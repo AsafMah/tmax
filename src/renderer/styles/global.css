@@ -1202,6 +1202,10 @@ html.transparency-active .input-dialog {
   flex-direction: column;
 }
 .dormant-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 6px 14px 8px;
   font-size: 11px;
   text-transform: uppercase;
@@ -1209,6 +1213,22 @@ html.transparency-active .input-dialog {
   color: var(--text-secondary);
   border-bottom: 1px solid var(--border-color);
   margin-bottom: 4px;
+}
+.dormant-popover-wake-all {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--accent, #7aa2f7);
+  font: inherit;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.dormant-popover-wake-all:hover {
+  background: rgba(122, 162, 247, 0.15);
+  border-color: var(--accent, #7aa2f7);
 }
 .dormant-popover-item {
   display: flex;
@@ -2155,6 +2175,61 @@ body.broadcast-on .terminal-panel {
   color: var(--text-secondary);
   text-align: center;
   font-size: 13px;
+}
+
+/* Prompt search dialog - reuses .switcher chrome but is wider and shows
+   multi-line items (prompt text + meta row). Triggered by Ctrl+Shift+Y. */
+.switcher.prompt-search {
+  width: 640px;
+  max-width: 90vw;
+  max-height: 70vh;
+}
+.prompt-search-item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.prompt-search-item:last-child {
+  border-bottom: none;
+}
+.prompt-search-item.prompt-search-orphan .prompt-search-prompt {
+  opacity: 0.7;
+}
+.prompt-search-prompt {
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.prompt-search-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+.prompt-search-meta .prompt-search-pane {
+  color: var(--focus-border, #89b4fa);
+}
+.prompt-search-meta .prompt-search-folder {
+  color: var(--text-secondary);
+}
+.prompt-search-meta .prompt-search-age {
+  margin-left: auto;
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+.prompt-search-mark {
+  background: rgba(249, 226, 175, 0.35);
+  color: var(--text-primary);
+  border-radius: 2px;
+  padding: 0 1px;
 }
 
 /* ===== Pane Hint Overlay ===== */

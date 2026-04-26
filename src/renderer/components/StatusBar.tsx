@@ -163,9 +163,19 @@ const StatusBar: React.FC = () => {
   // bar; with the bar hidden (Ctrl+Shift+B) they were unreachable. The
   // indicator below is the always-on alternative.
   const dormantTerminals = React.useMemo(() => {
-    const out: { id: string; title: string; cwd: string }[] = [];
+    const out: { id: string; title: string; cwd: string; pid: number; lastProcess: string }[] = [];
+    let i = 0;
     for (const [id, t] of terminals) {
-      if (t.mode === 'dormant') out.push({ id, title: t.title || 'Terminal', cwd: t.cwd || '' });
+      i++;
+      if (t.mode === 'dormant') {
+        out.push({
+          id,
+          title: t.title || `Terminal ${i}`,
+          cwd: t.cwd || '',
+          pid: t.pid,
+          lastProcess: t.lastProcess || '',
+        });
+      }
     }
     return out;
   }, [terminals]);
@@ -204,6 +214,7 @@ const StatusBar: React.FC = () => {
     { text: 'Right-click an AI session in the sidebar → 📖 View summary.', ai: true },
     { text: 'Pin AI sessions to the top with the 📌 button or right-click menu.', ai: true },
     { text: 'Ctrl+Shift+K opens the prompts history for the focused pane.' },
+    { text: 'Ctrl+Shift+Y searches every pane\'s prompts and jumps to the match.' },
     { text: 'Ctrl+Shift+G jumps to a terminal by name.' },
     { text: 'Ctrl+Shift+J shows pane hints — press a letter to jump to that pane.' },
     { text: 'Ctrl+T / Ctrl+W open and close terminals.' },
@@ -391,7 +402,20 @@ const StatusBar: React.FC = () => {
             } : undefined}
           >
             <div className="dormant-popover-header">
-              Hidden panes ({dormantTerminals.length}) - click to wake
+              <span>Hidden ({dormantTerminals.length})</span>
+              {dormantTerminals.length > 1 && (
+                <button
+                  className="dormant-popover-wake-all"
+                  onClick={() => {
+                    const store = useTerminalStore.getState();
+                    for (const t of dormantTerminals) store.wakeFromDormant(t.id);
+                    setDormantPopoverOpen(false);
+                  }}
+                  title="Wake every hidden pane at once"
+                >
+                  Wake all
+                </button>
+              )}
             </div>
             {dormantTerminals.map((t) => (
               <button
@@ -404,7 +428,11 @@ const StatusBar: React.FC = () => {
                 title={t.cwd}
               >
                 <span className="dormant-popover-title">{t.title}</span>
-                {t.cwd && <span className="dormant-popover-cwd">{t.cwd}</span>}
+                <span className="dormant-popover-cwd">
+                  {t.cwd}
+                  {t.lastProcess && t.lastProcess !== t.title ? (t.cwd ? ' · ' : '') + t.lastProcess : ''}
+                  {t.pid ? (t.cwd || t.lastProcess ? ' · ' : '') + 'pid ' + t.pid : ''}
+                </span>
               </button>
             ))}
           </div>
