@@ -1313,7 +1313,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
         <>
           <div
             className="pane-menu-backdrop"
-            onMouseDown={() => setPaneMenuPos(null)}
+            onClick={() => setPaneMenuPos(null)}
             onContextMenu={(e) => { e.preventDefault(); setPaneMenuPos(null); }}
           />
           <div
@@ -1325,6 +1325,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
               zIndex: 1000,
             }}
             onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
           >
             <button className="context-menu-item" onClick={() => {
               setPaneMenuPos(null);
