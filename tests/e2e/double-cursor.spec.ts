@@ -79,3 +79,86 @@ test('cursor stays hidden while alt-screen is on, even if bracketed paste toggle
     await close();
   }
 });
+
+test('cursor stays hidden when a TUI sends ?25h while alt-screen is on', async () => {
+  // Repro for: Claude Code / Copilot CLI enter alt-screen + bracketed paste,
+  // then later send ?25h to draw their own cursor in the input field. The
+  // earlier fix only re-hid the cursor when the chunk also contained ?2004
+  // or ?1049 - so a bare ?25h slipped past and we ended up with two cursors.
+  const { window, close } = await launchTmax();
+  try {
+    await window.waitForSelector('.terminal-panel', { timeout: 15_000 });
+    await window.waitForTimeout(2500);
+
+    await window.click('.terminal-panel .xterm-screen');
+    await window.waitForTimeout(300);
+
+    const focusedId = await window.evaluate(
+      () => (window as any).__terminalStore.getState().focusedTerminalId as string,
+    );
+
+    // Step 1: enter alt-screen + bracketed paste (TUI startup), expect hidden.
+    const setup = '[Console]::Write("`e[?1049h`e[?2004hSETUP_DONE_")';
+    await window.evaluate(
+      ({ id, c }: { id: string; c: string }) =>
+        (window as any).terminalAPI.writePty(id, c + '\r'),
+      { id: focusedId, c: setup },
+    );
+    await window.waitForFunction(
+      () => {
+        const id = (window as any).__terminalStore.getState().focusedTerminalId;
+        const entry = (window as any).__getTerminalEntry?.(id);
+        if (!entry) return false;
+        const buf = entry.terminal.buffer.active;
+        for (let y = 0; y < buf.length; y++) {
+          if ((buf.getLine(y)?.translateToString(true) ?? '').includes('SETUP_DONE_')) return true;
+        }
+        return false;
+      },
+      null, { timeout: 10_000 },
+    );
+    await window.waitForTimeout(150);
+
+    // Step 2: send a bare ?25h, no ?2004/?1049 in the same chunk. Mirrors
+    // what Ink-based CLIs do when they render their own input cursor.
+    const showCursor = '[Console]::Write("`e[?25hCURSOR_SHOW_DONE_")';
+    await window.evaluate(
+      ({ id, c }: { id: string; c: string }) =>
+        (window as any).terminalAPI.writePty(id, c + '\r'),
+      { id: focusedId, c: showCursor },
+    );
+    await window.waitForFunction(
+      () => {
+        const id = (window as any).__terminalStore.getState().focusedTerminalId;
+        const entry = (window as any).__getTerminalEntry?.(id);
+        if (!entry) return false;
+        const buf = entry.terminal.buffer.active;
+        for (let y = 0; y < buf.length; y++) {
+          if ((buf.getLine(y)?.translateToString(true) ?? '').includes('CURSOR_SHOW_DONE_')) return true;
+        }
+        return false;
+      },
+      null, { timeout: 10_000 },
+    );
+    await window.waitForTimeout(150);
+
+    const state = await window.evaluate(() => {
+      const id = (window as any).__terminalStore.getState().focusedTerminalId;
+      const entry = (window as any).__getTerminalEntry(id);
+      const term = entry.terminal;
+      const core = (term as any)._core;
+      const svc = core?.coreService ?? core?._coreService;
+      const buffers = core?.buffers ?? core?._bufferService?.buffers;
+      return {
+        isCursorHidden: !!svc?.isCursorHidden,
+        isInAltBuffer: !!buffers && buffers.active === buffers.alt,
+      };
+    });
+
+    // Even though the TUI just sent ?25h, our re-hide should have undone it.
+    expect(state.isInAltBuffer).toBe(true);
+    expect(state.isCursorHidden).toBe(true);
+  } finally {
+    await close();
+  }
+});

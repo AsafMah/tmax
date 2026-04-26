@@ -303,14 +303,27 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
     // Custom multi-line URL link provider (#62): xterm's built-in WebLinksAddon
     // stops detecting wrapped URLs past a certain row count, so very long links
     // (e.g. Outlook safelinks) only highlight their first row. We walk the
-    // buffer manually using the `isWrapped` flag to reconstruct the full logical
-    // line, run the URL regex on it, and emit a link range that spans every row
-    // the URL visually occupies.
+    // buffer manually to reconstruct the full URL and emit a link range that
+    // spans every row the URL visually occupies.
+    //
+    // Two stitching modes:
+    //  - Soft wrap: xterm's `isWrapped` flag groups continuation rows. Each
+    //    row holds exactly `cols` cells, so reverse-mapping is just modulo.
+    //  - Hard newline (e.g. `gh auth login` formats its SSO URL with explicit
+    //    line breaks at ~88 cols): the wrapped flag is false but a URL still
+    //    visually continues. We append the next non-wrapped row when (a) the
+    //    current row ends in URL-safe characters with no trailing space and
+    //    (b) the next row starts with URL-safe characters with no leading
+    //    space. That heuristic is tight enough to avoid false-merging unrelated
+    //    adjacent text - regular prose has spaces or punctuation at line ends.
     //
     // Regex excludes whitespace/quotes/parens/angle-brackets at the ends, allows
     // `|` and `%` inside (dev tools / URL-encoded chars). Mirrors the old
     // WebLinksAddon regex.
     const urlRegex = /(https?|HTTPS?):\/\/[^\s"'!*(){}\\\^<>`]*[^\s"':,.!?{}\\\^~\[\]`()<>]/g;
+    // Characters that can plausibly appear inside a URL split point. Anything
+    // outside this set means "this isn't a URL continuation".
+    const URL_BODY = /^[A-Za-z0-9%\-._~!$&'()*+,;=:@/?#\[\]|]+$/;
     term.registerLinkProvider({
       provideLinks(bufferLineNumber, callback) {
         const buf = term.buffer.active;
@@ -318,30 +331,92 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
         const lineIdx0 = bufferLineNumber - 1;
         if (lineIdx0 < 0 || lineIdx0 >= buf.length) { callback(undefined); return; }
 
-        // Walk back to the logical start (first line whose successor has isWrapped).
-        let startIdx = lineIdx0;
-        while (startIdx > 0) {
-          const cur = buf.getLine(startIdx);
+        // Walk back to the logical start of the soft-wrap chain.
+        let softStart = lineIdx0;
+        while (softStart > 0) {
+          const cur = buf.getLine(softStart);
           if (!cur?.isWrapped) break;
-          startIdx--;
+          softStart--;
         }
         // Walk forward while the next line is a wrap continuation.
-        let endIdx = startIdx;
-        while (endIdx + 1 < buf.length) {
-          const next = buf.getLine(endIdx + 1);
+        let softEnd = softStart;
+        while (softEnd + 1 < buf.length) {
+          const next = buf.getLine(softEnd + 1);
           if (!next?.isWrapped) break;
-          endIdx++;
-        }
-
-        // Concatenate the logical line text. Use trimRight=false so columns line up
-        // 1:1 with the buffer grid - we need that for accurate reverse mapping.
-        let logical = '';
-        for (let i = startIdx; i <= endIdx; i++) {
-          const line = buf.getLine(i);
-          if (line) logical += line.translateToString(false);
+          softEnd++;
         }
 
         const cols = term.cols;
+        // Each segment maps a buffer row to a slice of `logical`. We tag soft-
+        // vs hard-newlined because they're textualised differently:
+        //  - soft-wrapped middle rows are exactly cols-wide (no trim) so the
+        //    reverse offset->row math stays simple
+        //  - hard-newlined rows have padding spaces past their content, so we
+        //    trim those (otherwise the URL regex's anti-whitespace anchor
+        //    would clip the match at the first padding char)
+        interface Seg { rowIdx: number; text: string; logicalStart: number; soft: boolean }
+        const segs: Seg[] = [];
+        let logical = '';
+        for (let i = softStart; i <= softEnd; i++) {
+          const line = buf.getLine(i);
+          if (!line) continue;
+          // The trailing soft row also needs trim - it's the only one that
+          // may not be cols-wide.
+          const text = i < softEnd ? line.translateToString(false) : line.translateToString(true);
+          segs.push({ rowIdx: i, text, logicalStart: logical.length, soft: true });
+          logical += text;
+        }
+
+        // Hard-newline forward stitch: keep eating the next non-wrapped row
+        // as long as the boundary looks URL-shaped on both sides. Bounded to
+        // avoid runaway walks through a buffer full of URL-safe lines.
+        const MAX_HARD_NEWLINE = 8;
+        let stitchedFwd = 0;
+        while (stitchedFwd < MAX_HARD_NEWLINE && segs[segs.length - 1] && segs[segs.length - 1].rowIdx + 1 < buf.length) {
+          const lastSeg = segs[segs.length - 1];
+          const nextRow = lastSeg.rowIdx + 1;
+          const next = buf.getLine(nextRow);
+          if (!next || next.isWrapped) break;
+          // Seam check: no whitespace at end of logical, no whitespace at
+          // start of next row, both seam chars are URL-safe.
+          if (/\s$/.test(logical)) break;
+          const lastCh = logical.charAt(logical.length - 1);
+          if (!URL_BODY.test(lastCh)) break;
+          const nextText = next.translateToString(true);
+          if (!nextText || /^\s/.test(nextText)) break;
+          const m = nextText.match(/^(\S+)/);
+          if (!m || !URL_BODY.test(m[1])) break;
+
+          segs.push({ rowIdx: nextRow, text: nextText, logicalStart: logical.length, soft: false });
+          logical += nextText;
+          stitchedFwd++;
+        }
+
+        // Hard-newline backward stitch: same heuristic, in reverse, so a
+        // continuation-row query can rebuild the full URL too.
+        let stitchedBack = 0;
+        while (stitchedBack < MAX_HARD_NEWLINE && segs[0] && segs[0].rowIdx > 0) {
+          const firstSeg = segs[0];
+          const prevRow = firstSeg.rowIdx - 1;
+          const prev = buf.getLine(prevRow);
+          if (!prev) break;
+          const prevText = prev.translateToString(true);
+          if (!prevText || /\s$/.test(prevText)) break;
+          const lastCh = prevText.charAt(prevText.length - 1);
+          if (!URL_BODY.test(lastCh)) break;
+          // Current first seg must start with a URL-safe token (no leading
+          // whitespace, head token URL-shaped).
+          if (/^\s/.test(firstSeg.text)) break;
+          const tokMatch = firstSeg.text.match(/^(\S+)/);
+          if (!tokMatch || !URL_BODY.test(tokMatch[1])) break;
+
+          // Prepend: shift everything's logicalStart by prevText.length.
+          for (const s of segs) s.logicalStart += prevText.length;
+          segs.unshift({ rowIdx: prevRow, text: prevText, logicalStart: 0, soft: false });
+          logical = prevText + logical;
+          stitchedBack++;
+        }
+
         const links: Array<{
           range: { start: { x: number; y: number }; end: { x: number; y: number } };
           text: string;
@@ -349,25 +424,40 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
           decorations?: { underline?: boolean; pointerCursor?: boolean };
         }> = [];
 
+        // Find the segment that contains a given offset in `logical`. Returns
+        // (rowIdx, col) where col is 0-based within that visual row.
+        function offsetToRowCol(offset: number): { row: number; col: number } {
+          for (let s = segs.length - 1; s >= 0; s--) {
+            const seg = segs[s];
+            if (offset >= seg.logicalStart) {
+              const within = offset - seg.logicalStart;
+              // Soft-wrapped segments live on a cols-wide grid: an offset
+              // larger than `cols` rolls onto the soft-wrap continuation row.
+              // Hard-newlined segments are variable width and stay on their
+              // own row; we don't roll them.
+              if (seg.soft && within >= cols) {
+                return { row: seg.rowIdx + Math.floor(within / cols), col: within % cols };
+              }
+              return { row: seg.rowIdx, col: within };
+            }
+          }
+          return { row: segs[0]?.rowIdx ?? 0, col: 0 };
+        }
+
         let m: RegExpExecArray | null;
         urlRegex.lastIndex = 0;
         while ((m = urlRegex.exec(logical)) !== null) {
           const matchStart = m.index;
           const matchEnd = m.index + m[0].length - 1;
-          // Map offsets in the concatenated string back to (row, col) on screen.
-          // Each wrapped row holds exactly `cols` cells.
-          const startRow = startIdx + Math.floor(matchStart / cols);
-          const startCol = matchStart % cols;
-          const endRow = startIdx + Math.floor(matchEnd / cols);
-          const endCol = matchEnd % cols;
-
+          const a = offsetToRowCol(matchStart);
+          const b = offsetToRowCol(matchEnd);
           // Only emit if this link visually touches the row the linkifier asked about.
-          if (lineIdx0 < startRow || lineIdx0 > endRow) continue;
+          if (lineIdx0 < a.row || lineIdx0 > b.row) continue;
 
           links.push({
             range: {
-              start: { x: startCol + 1, y: startRow + 1 },
-              end: { x: endCol + 1, y: endRow + 1 },
+              start: { x: a.col + 1, y: a.row + 1 },
+              end: { x: b.col + 1, y: b.row + 1 },
             },
             text: m[0],
             activate(_e, uri) { window.open(uri, '_blank'); },
@@ -556,6 +646,15 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
         }
         else if (chunk.startsWith('\x1b[?1049l', i) || chunk.startsWith('\x1b[?1047l', i)) {
           cursorHideSignalsRef.current.altScreen = false; cursorSyncDirty = true;
+        }
+        // If the app tries to flip the hardware cursor while either of our
+        // hide signals is on, queue a re-hide for after this chunk lands.
+        // Claude Code / Copilot CLI emit ?25h when drawing their input field
+        // and used to slip past us, painting xterm's cursor next to theirs.
+        else if (chunk.startsWith('\x1b[?25h', i) || chunk.startsWith('\x1b[?25l', i)) {
+          if (cursorHideSignalsRef.current.bracketedPaste || cursorHideSignalsRef.current.altScreen) {
+            cursorSyncDirty = true;
+          }
         }
       }
     };
@@ -1062,13 +1161,16 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
     // Only style the active match. Setting matchBackground would highlight
     // *every* occurrence in the buffer, which is overwhelming for short
     // prompts like 'hi' or 'yes' that appear all over assistant output.
+    // xterm's ISearchOptions wants matchBackground+matchOverviewRuler too,
+    // but those decorate every occurrence in the buffer - bad UX for short
+    // prompts. Cast to any so we can supply only the active-match fields.
     const opts = {
       decorations: {
         activeMatchColorOverviewRuler: '#fff',
         activeMatchBackground: '#89b4fa',
       },
       caseSensitive: false,
-    };
+    } as any;
     const queries = [
       text.slice(0, 120),
       text.slice(0, 60),
