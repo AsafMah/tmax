@@ -9,12 +9,20 @@ import type { SearchAddon } from '@xterm/addon-search';
 interface TerminalEntry {
   terminal: Terminal;
   searchAddon: SearchAddon;
+  // Test-only hook for flipping bracketed-paste state without round-tripping
+  // through the PTY data listener. Production code never calls this.
+  setBracketedPasteForTest?: (value: boolean) => void;
 }
 
 const registry = new Map<string, TerminalEntry>();
 
-export function registerTerminal(id: string, terminal: Terminal, searchAddon: SearchAddon): void {
-  registry.set(id, { terminal, searchAddon });
+export function registerTerminal(
+  id: string,
+  terminal: Terminal,
+  searchAddon: SearchAddon,
+  setBracketedPasteForTest?: (value: boolean) => void,
+): void {
+  registry.set(id, { terminal, searchAddon, setBracketedPasteForTest });
 }
 
 export function unregisterTerminal(id: string): void {

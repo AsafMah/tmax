@@ -502,7 +502,9 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId, floatTitleBar
     });
 
     searchAddonRef.current = searchAddon;
-    registerTerminal(terminalId, term, searchAddon);
+    registerTerminal(terminalId, term, searchAddon, (value: boolean) => {
+      cursorHideSignalsRef.current.bracketedPaste = value;
+    });
 
     searchAddon.onDidChangeResults((e) => {
       if (e) {
@@ -541,7 +543,21 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId, floatTitleBar
           if (text && !linkUrl && /^https?:\/\/[^\s]+$/.test(text.trim())) {
             text = unwrapSafelinks(text.trim());
           }
-          if (text) window.terminalAPI.writePty(terminalId, text);
+          if (text) {
+            // Normalize CRLF / lone CR to LF so readline-style shells don't
+            // submit the prompt twice on a single embedded newline.
+            text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            // If the focused shell advertised bracketed paste (?2004h - used
+            // by Claude Code, Copilot CLI, PSReadLine, bash readline, etc.),
+            // wrap the payload so embedded \n is treated as data, not Enter.
+            // Without this, the shell submits the first line and lands the
+            // rest at a fresh prompt - the user perceives "only the end
+            // pasted" because earlier chunks fired as separate commands.
+            if (cursorHideSignalsRef.current.bracketedPaste) {
+              text = `\x1b[200~${text}\x1b[201~`;
+            }
+            window.terminalAPI.writePty(terminalId, text);
+          }
         }
         return false;
       }

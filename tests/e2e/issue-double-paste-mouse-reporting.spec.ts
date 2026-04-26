@@ -65,10 +65,14 @@ test('right-click paste with SGR mouse reporting on writes payload once, no mous
     const sinceMarker = log.slice(log.lastIndexOf(marker));
     const writeLines = sinceMarker.split('\n').filter((l) => l.includes(' pty:write '));
 
-    // 1) Exactly one pty:write matching the paste payload length
+    // 1) Exactly one pty:write matching the paste payload length. PSReadLine
+    //    enables bracketed paste, so the renderer wraps payload in
+    //    \x1b[200~ ... \x1b[201~ (12 extra bytes); accept either size.
     const pasteWrites = writeLines.filter((l) => {
       const m = l.match(/"bytes":(\d+)/);
-      return m && parseInt(m[1], 10) === payload.length;
+      if (!m) return false;
+      const n = parseInt(m[1], 10);
+      return n === payload.length || n === payload.length + 12;
     });
     expect(pasteWrites.length).toBe(1);
 

@@ -66,9 +66,13 @@ test('right-click in a detached window pastes clipboard exactly once', async () 
     const sinceMarker = log.slice(log.lastIndexOf(marker));
     const writeLines = sinceMarker.split('\n').filter((l) => l.includes(' pty:write '));
 
+    // PSReadLine enables bracketed paste, so the renderer wraps payload in
+    // \x1b[200~ ... \x1b[201~ (12 extra bytes). Accept either size.
     const pasteWrites = writeLines.filter((l) => {
       const m = l.match(/"bytes":(\d+)/);
-      return m && parseInt(m[1], 10) === payload.length;
+      if (!m) return false;
+      const n = parseInt(m[1], 10);
+      return n === payload.length || n === payload.length + 12;
     });
     const rightMouseWrites = writeLines.filter((l) => /\\x1b\[<2;/.test(l));
 

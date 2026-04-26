@@ -16,14 +16,21 @@ function readDiagLog(userDataDir: string): string {
   return readFileSync(path, 'utf8');
 }
 
-function countPtyWritesWithBytes(log: string, sinceMarker: string, expectedBytes: number): number {
+// PSReadLine enables bracketed paste at startup, so tmax now wraps the paste
+// payload in \x1b[200~ ... \x1b[201~ (12 extra bytes). Either the raw size or
+// the wrapped size is acceptable - both prove the paste fired exactly once.
+const BRACKETED_PASTE_OVERHEAD = 12;
+
+function countPtyWritesWithPayload(log: string, sinceMarker: string, payloadLen: number): number {
   const idx = log.lastIndexOf(sinceMarker);
   const tail = idx >= 0 ? log.slice(idx) : log;
   const lines = tail.split(/\r?\n/).filter((l) => l.includes(' pty:write '));
   let count = 0;
   for (const line of lines) {
     const m = line.match(/"bytes":(\d+)/);
-    if (m && parseInt(m[1], 10) === expectedBytes) count++;
+    if (!m) continue;
+    const n = parseInt(m[1], 10);
+    if (n === payloadLen || n === payloadLen + BRACKETED_PASTE_OVERHEAD) count++;
   }
   return count;
 }
@@ -55,7 +62,7 @@ test('Ctrl+V writes paste payload to PTY exactly once', async () => {
     await window.waitForTimeout(800);
 
     const log = readDiagLog(userDataDir);
-    const count = countPtyWritesWithBytes(log, marker, payload.length);
+    const count = countPtyWritesWithPayload(log, marker, payload.length);
 
     console.log('Paste pty:write count after Ctrl+V:', count);
     const sinceMarker = log.slice(log.lastIndexOf(marker));
