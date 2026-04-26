@@ -1308,7 +1308,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId }) => {
               className={`terminal-status-dot ${processStatus}`}
               title={processStatus === 'active' ? 'Active' : processStatus === 'exited-error' ? 'Exited with error' : processStatus === 'idle' ? 'Idle' : 'Exited'}
             />
-            <span className="pane-close-x" title="Close pane">✕</span>
+            <span className="pane-close-x" title="Close pane (Ctrl+W)">✕</span>
           </div>
           {isRenamingPane ? (
             <input
