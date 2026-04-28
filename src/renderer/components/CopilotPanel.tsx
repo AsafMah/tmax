@@ -118,6 +118,15 @@ const CopilotPanel: React.FC = () => {
     return ids;
   }, [terminals]);
 
+  // TASK-36: the AI session bound to the currently focused pane. Rendered
+  // with a distinct `pane-active` class so mouse hover (which mutates
+  // selectedIndex) can no longer stomp the "this is the running pane"
+  // highlight.
+  const activePaneSessionId = useMemo(() => {
+    if (!focusedTerminalId) return null;
+    return terminals.get(focusedTerminalId)?.aiSessionId ?? null;
+  }, [focusedTerminalId, terminals]);
+
   // Map AI session id -> pane color so list items can mirror the pane's color
   const tabGroups = useTerminalStore((s) => s.tabGroups);
   const defaultTabColor = useTerminalStore((s) => (s.config as any)?.defaultTabColor);
@@ -187,12 +196,21 @@ const CopilotPanel: React.FC = () => {
   // #69: Group sessions by cwd's folder name. Default on; persisted in config
   // so users who explicitly turn it off stay off across restarts.
   const groupByRepo = (config as any)?.aiGroupByRepo !== false;
-  const repoKey = (s: CopilotSessionSummary): string => shortPath(s.cwd || '') || '(no repo)';
+  // TASK-35: case-fold the grouping key so cwds that differ only in case
+  // (e.g. C:\projects\ClawPilot vs ...\clawpilot - same Windows folder)
+  // collapse into one group. Display name (rendered in the header) is
+  // tracked separately and preserves the casing of the first session in
+  // the bucket.
+  const repoDisplay = (s: CopilotSessionSummary): string => shortPath(s.cwd || '') || '(no repo)';
+  const repoKey = (s: CopilotSessionSummary): string => repoDisplay(s).toLowerCase();
   // Pinned sessions get their own top-level pseudo-group so they sit above
   // every repo group, regardless of which repo they belong to.
   const PINNED_GROUP = '📌 Pinned';
+  const PINNED_GROUP_KEY = PINNED_GROUP.toLowerCase();
   const effectiveRepoKey = (s: CopilotSessionSummary): string =>
-    pinnedSessions[s.id] ? PINNED_GROUP : repoKey(s);
+    pinnedSessions[s.id] ? PINNED_GROUP_KEY : repoKey(s);
+  const effectiveRepoDisplay = (s: CopilotSessionSummary): string =>
+    pinnedSessions[s.id] ? PINNED_GROUP : repoDisplay(s);
 
   // Auto-collapse all groups on the transition from off → on, AND on initial
   // mount when grouping is on (since the default is now "on"). Users asked
@@ -265,8 +283,8 @@ const CopilotPanel: React.FC = () => {
     }
     const sortedGroups = [...groups.entries()].sort(([ak, av], [bk, bv]) => {
       // Pinned group always at the top; no-repo bucket always at the bottom.
-      if (ak === PINNED_GROUP) return -1;
-      if (bk === PINNED_GROUP) return 1;
+      if (ak === PINNED_GROUP_KEY) return -1;
+      if (bk === PINNED_GROUP_KEY) return 1;
       if (ak === '(no repo)') return 1;
       if (bk === '(no repo)') return -1;
       const aRecent = Math.max(...av.map((s) => s.lastActivityTime || 0));
@@ -275,6 +293,18 @@ const CopilotPanel: React.FC = () => {
     });
     return sortedGroups.flatMap(([, group]) => group);
   }, [filtered, groupByRepo, pinnedSessions]);
+
+  // TASK-35: per-group display label (preserves original casing from the
+  // first session encountered in each lowercase bucket).
+  const groupDisplayNames = useMemo(() => {
+    const m = new Map<string, string>();
+    if (!groupByRepo) return m;
+    for (const s of displayList) {
+      const key = effectiveRepoKey(s);
+      if (!m.has(key)) m.set(key, effectiveRepoDisplay(s));
+    }
+    return m;
+  }, [displayList, groupByRepo, pinnedSessions]);
 
   // #69: counts per group key so the collapsible header can show `tmax · 3`.
   const groupSizes = useMemo(() => {
@@ -742,24 +772,26 @@ const CopilotPanel: React.FC = () => {
           const prevRepo = index > 0 ? effectiveRepoKey(displayList[index - 1]) : null;
           const showGroupHeader = groupByRepo && currentRepo !== prevRepo;
           const isCollapsed = groupByRepo && collapsedGroups.has(currentRepo);
+          const headerLabel = groupDisplayNames.get(currentRepo) || currentRepo;
+          const isPaneActive = activePaneSessionId === session.id;
 
           return (
             <React.Fragment key={`${session.provider}-${session.id}`}>
               {showGroupHeader && (
                 <div
                   className={`ai-session-group-header${isCollapsed ? ' collapsed' : ''}`}
-                  title={currentRepo}
+                  title={headerLabel}
                   onClick={() => toggleGroupCollapsed(currentRepo)}
                 >
                   <span className="ai-session-group-chevron">{isCollapsed ? '▸' : '▾'}</span>
-                  <span className="ai-session-group-name">{currentRepo}</span>
+                  <span className="ai-session-group-name">{headerLabel}</span>
                   <span className="ai-session-group-count">{groupSizes.get(currentRepo) || 0}</span>
                 </div>
               )}
               {!isCollapsed && <>
             <div
               style={itemStyle}
-              className={`ai-session-item${index === selectedIndex ? ' selected' : ''}${selectedSessionIds.has(session.id) ? ' multi-selected' : ''}${active ? ' active' : ''}`}
+              className={`ai-session-item${index === selectedIndex ? ' selected' : ''}${selectedSessionIds.has(session.id) ? ' multi-selected' : ''}${active ? ' active' : ''}${isPaneActive ? ' pane-active' : ''}`}
               onClick={(e) => {
                 setSelectedIndex(index);
                 if (e.ctrlKey || e.metaKey) {

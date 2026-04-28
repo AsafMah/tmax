@@ -3632,6 +3632,18 @@ select.settings-input {
   border-left-color: var(--focus-border);
 }
 
+/* TASK-36: row whose session belongs to the currently focused pane.
+   Uses a stronger background + a left rail so the indicator survives
+   hover/selected styling on other rows. */
+.ai-session-item.pane-active {
+  background: rgba(137, 180, 250, 0.18);
+  box-shadow: inset 3px 0 0 0 var(--focus-border);
+}
+.ai-session-item.pane-active:hover,
+.ai-session-item.pane-active.selected {
+  background: rgba(137, 180, 250, 0.22);
+}
+
 /* Status dot */
 .ai-status-dot {
   display: inline-block;
