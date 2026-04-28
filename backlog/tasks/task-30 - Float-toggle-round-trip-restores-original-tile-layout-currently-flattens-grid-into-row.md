@@ -3,11 +3,11 @@ id: TASK-30
 title: >-
   Float toggle round-trip restores original tile layout (currently flattens grid
   into row)
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-04-28 09:03'
-updated_date: '2026-04-28 10:07'
+updated_date: '2026-04-28 11:00'
 labels: []
 dependencies: []
 ---

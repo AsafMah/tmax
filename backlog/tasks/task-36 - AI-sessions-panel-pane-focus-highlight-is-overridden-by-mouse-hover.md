@@ -1,11 +1,11 @@
 ---
 id: TASK-36
 title: 'AI sessions panel: pane-focus highlight is overridden by mouse hover'
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-04-28 10:54'
-updated_date: '2026-04-28 10:57'
+updated_date: '2026-04-28 11:01'
 labels:
   - bug
   - ai-sessions
@@ -21,11 +21,11 @@ Two related symptoms reported via screenshots 2026-04-28:\n\n1. Clicking a termi
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Clicking a terminal pane in the main grid highlights the matching AI session in the sidebar, regardless of where the mouse is at click time
-- [ ] #2 Hovering over other rows in the sidebar does NOT change the active-session highlight
-- [ ] #3 Hover provides its own visual affordance distinct from the active-session highlight (or no hover style at all if that's simpler)
-- [ ] #4 Keyboard arrow navigation in the panel still works as before (j/k or up/down)
-- [ ] #5 Playwright repro spec lands alongside the fix
+- [x] #1 Clicking a terminal pane in the main grid highlights the matching AI session in the sidebar, regardless of where the mouse is at click time
+- [x] #2 Hovering over other rows in the sidebar does NOT change the active-session highlight
+- [x] #3 Hover provides its own visual affordance distinct from the active-session highlight (or no hover style at all if that's simpler)
+- [x] #4 Keyboard arrow navigation in the panel still works as before (j/k or up/down)
+- [x] #5 Playwright repro spec lands alongside the fix
 <!-- AC:END -->
 
 ## Implementation Plan

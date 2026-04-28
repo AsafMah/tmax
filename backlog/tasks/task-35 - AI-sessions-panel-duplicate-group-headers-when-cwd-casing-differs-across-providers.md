@@ -3,11 +3,11 @@ id: TASK-35
 title: >-
   AI sessions panel: duplicate group headers when cwd casing differs across
   providers
-status: In Progress
+status: Done
 assignee:
   - '@claude'
 created_date: '2026-04-28 10:54'
-updated_date: '2026-04-28 10:57'
+updated_date: '2026-04-28 11:01'
 labels:
   - bug
   - ai-sessions
@@ -23,11 +23,11 @@ User saw two separate 'CLAWPILOT' group headers in the AI sessions sidebar - one
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Sessions whose cwds differ only in case (e.g. C:\projects\ClawPilot vs C:\projects\clawpilot) are merged into a single group on Windows
-- [ ] #2 Group header label preserves original casing of one of the contributing cwds (does not force lowercase in the visible name)
-- [ ] #3 Tooltip / title attribute on the group header still shows a representative cwd
-- [ ] #4 macOS/Linux behavior unchanged for case-sensitive filesystems (or matches Windows behavior - decision documented in implementation notes)
-- [ ] #5 Playwright repro spec lands alongside the fix
+- [x] #1 Sessions whose cwds differ only in case (e.g. C:\projects\ClawPilot vs C:\projects\clawpilot) are merged into a single group on Windows
+- [x] #2 Group header label preserves original casing of one of the contributing cwds (does not force lowercase in the visible name)
+- [x] #3 Tooltip / title attribute on the group header still shows a representative cwd
+- [x] #4 macOS/Linux behavior unchanged for case-sensitive filesystems (or matches Windows behavior - decision documented in implementation notes)
+- [x] #5 Playwright repro spec lands alongside the fix
 <!-- AC:END -->
 
 ## Implementation Plan
