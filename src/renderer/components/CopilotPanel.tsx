@@ -347,6 +347,20 @@ const CopilotPanel: React.FC = () => {
     const session = [...store.copilotSessions, ...store.claudeCodeSessions].find((s) => s.id === aiSessionId);
     if (!session) return;
 
+    // If the target session sits inside a collapsed group, no DOM node
+    // gets the .selected class - the {!isCollapsed && ...} guard below
+    // skips rendering. The user then sees whichever item happened to be
+    // selected before (often the pinned tmax session at index 0) staying
+    // visually highlighted instead of the focused pane's session. Expand
+    // the relevant group so the target row actually renders.
+    const targetGroup = effectiveRepoKey(session);
+    setCollapsedGroups((prev) => {
+      if (!prev.has(targetGroup)) return prev;
+      const next = new Set(prev);
+      next.delete(targetGroup);
+      return next;
+    });
+
     const sessionLifecycle = getSessionLifecycle(session);
     if (sessionLifecycle !== lifecycleTab) {
       pendingHighlightRef.current = aiSessionId;

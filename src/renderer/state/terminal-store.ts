@@ -2378,9 +2378,16 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
       const sessionCwd = normCwd(session.cwd);
       const eligible: string[] = [];
       for (const [id, t] of terminals) {
-        if (t.aiSessionId) continue;
+        if (t.aiSessionId === session.id) continue;
         if (t.mode !== 'tiled' && t.mode !== 'floating') continue;
         if (normCwd(t.cwd) !== sessionCwd) continue;
+        // Allow rebinding the focused pane when it already has a (now
+        // stale) aiSessionId from a previous AI process in the same cwd -
+        // the user's "click on the new claude" signal makes it the obvious
+        // host for the new session. Non-focused panes with an existing
+        // link are off-limits so we never silently move a session away
+        // from a background pane the user can't see (TASK-29).
+        if (t.aiSessionId && id !== focusedTerminalId) continue;
         eligible.push(id);
       }
       if (eligible.length > 0) {
