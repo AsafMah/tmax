@@ -755,7 +755,7 @@ const CopilotPanel: React.FC = () => {
                   onClick={() => { setCleanupModal({ thresholdStr: '10' }); setHeaderMenuOpen(false); }}
                 >
                   <span style={{ display: 'inline-block', width: 16 }}>🧹</span>
-                  Cleanup by prompt count…
+                  Cleanup sessions…
                 </button>
               </div>
             </>
