@@ -778,7 +778,6 @@ const CopilotPanel: React.FC = () => {
               position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000,
             }}
-            onClick={() => setCleanupModal(null)}
           >
             <div
               style={{
@@ -786,7 +785,6 @@ const CopilotPanel: React.FC = () => {
                 border: '1px solid var(--border, #45475a)', borderRadius: 6, padding: 20,
                 minWidth: 340, maxWidth: 420, boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
               }}
-              onClick={(e) => e.stopPropagation()}
             >
               <div style={{ fontWeight: 600, marginBottom: 10 }}>🧹 Cleanup low-prompt sessions</div>
               <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 12 }}>
