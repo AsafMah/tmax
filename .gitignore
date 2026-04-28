@@ -3,6 +3,7 @@ node_modules/
 out/
 out-next/
 out-e2e/
+out-test/
 dist/
 *.node
 

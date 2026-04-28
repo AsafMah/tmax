@@ -4,7 +4,7 @@ title: Filter out garbage AI session summaries in the sidebar (e.g. lone '|-')
 status: Done
 assignee: []
 created_date: '2026-04-28 09:43'
-updated_date: '2026-04-28 10:31'
+updated_date: '2026-04-28 10:33'
 labels: []
 dependencies: []
 ---
@@ -25,7 +25,7 @@ Options to consider:
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
 - [x] #1 Sessions whose summary is meaningless (e.g. lone '|-', single non-alphanumeric char, empty after strip) fall back to cwd / repo / id rather than rendering the garbage
-- [ ] #2 Root cause for the '|-' summary identified: either fixed at the extraction step, or filtered at the render step with a comment explaining why
+- [x] #2 Root cause for the '|-' summary identified: either fixed at the extraction step, or filtered at the render step with a comment explaining why
 - [x] #3 Sidebar rows for unaffected sessions render unchanged
 <!-- AC:END -->
 
@@ -39,4 +39,6 @@ Implemented at the render step rather than the extraction step - couldn't safely
 
 <!-- SECTION:FINAL_SUMMARY:BEGIN -->
 Sidebar rows whose AI session summary is pure structural noise (e.g. lone "|-", a single dash, all-whitespace) now render with the cwd/repo/id fallback instead of the garbage. Implemented as a render-step filter (isMeaninglessSummary) in CopilotPanel.tsx getTitle/getSubtitle. Real summaries are unchanged.
+
+Follow-up commit: identified the upstream cause - Copilot CLI YAML uses block scalars (summary: |-) for multi-line summaries; parser at copilot-session-monitor.ts:247 was taking |- as the literal value. Fixed at the parse step; the render-step isMeaninglessSummary filter stays as defense-in-depth.
 <!-- SECTION:FINAL_SUMMARY:END -->
