@@ -716,6 +716,15 @@ interface TerminalStore {
   // session that already has a lifecycle override (the user's manual
   // choice wins). Idempotent - safe to call multiple times. (TASK-32)
   autoArchiveStaleSessions: () => void;
+  // Bulk-archive every AI session whose messageCount is below the given
+  // threshold. Skips pinned sessions and any session that already has a
+  // lifecycle override (the user's manual choice wins). Returns the count
+  // of sessions archived. (TASK-37)
+  cleanupLowPromptSessions: (threshold: number) => number;
+  // Count of sessions that cleanupLowPromptSessions(threshold) would
+  // archive without applying any change. Used to populate the
+  // confirmation dialog. (TASK-37)
+  countLowPromptSessions: (threshold: number) => number;
   togglePinSession: (sessionId: string) => void;
   checkStaleActiveSessions: () => void;
   addToast: (message: string) => void;
@@ -2730,6 +2739,41 @@ export const useTerminalStore = create<TerminalStore>((set, get) => ({
       (window as any).terminalAPI?.diagLog?.(`auto-archive: ${archivedIds.length} sessions`);
     } catch { /* main process may not be reachable yet */ }
     get().saveSession();
+  },
+
+  countLowPromptSessions: (threshold: number) => {
+    if (!Number.isFinite(threshold) || threshold <= 0) return 0;
+    const { copilotSessions, claudeCodeSessions, sessionPinned, sessionLifecycleOverrides } = get();
+    let count = 0;
+    for (const s of [...copilotSessions, ...claudeCodeSessions]) {
+      if (sessionPinned[s.id]) continue;
+      if (sessionLifecycleOverrides[s.id]) continue;
+      if (s.messageCount < threshold) count++;
+    }
+    return count;
+  },
+
+  cleanupLowPromptSessions: (threshold: number) => {
+    if (!Number.isFinite(threshold) || threshold <= 0) return 0;
+    const { copilotSessions, claudeCodeSessions, sessionPinned, sessionLifecycleOverrides } = get();
+    const additions: Record<string, import('../../shared/copilot-types').SessionLifecycle> = {};
+    for (const s of [...copilotSessions, ...claudeCodeSessions]) {
+      if (sessionPinned[s.id]) continue;
+      if (sessionLifecycleOverrides[s.id]) continue;
+      if (s.messageCount < threshold) additions[s.id] = 'old';
+    }
+    const ids = Object.keys(additions);
+    if (ids.length === 0) return 0;
+    set((state) => ({
+      sessionLifecycleOverrides: { ...state.sessionLifecycleOverrides, ...additions },
+    }));
+    // eslint-disable-next-line no-console
+    console.info(`[cleanup] Archived ${ids.length} session${ids.length === 1 ? '' : 's'} with <${threshold} prompts.`);
+    try {
+      (window as any).terminalAPI?.diagLog?.(`cleanup-low-prompts: ${ids.length} sessions (threshold ${threshold})`);
+    } catch { /* main process may not be reachable yet */ }
+    get().saveSession();
+    return ids.length;
   },
 
   togglePinSession: (sessionId: string) => {

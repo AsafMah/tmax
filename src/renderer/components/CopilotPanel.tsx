@@ -716,6 +716,36 @@ const CopilotPanel: React.FC = () => {
               </button>
             );
           })()}
+          <button
+            className="ai-session-tab"
+            onClick={() => {
+              const store = useTerminalStore.getState();
+              const raw = window.prompt('Archive sessions with fewer than how many prompts?', '10');
+              if (raw === null) return;
+              const threshold = Number(raw);
+              if (!Number.isFinite(threshold) || threshold <= 0) {
+                window.alert(`"${raw}" is not a positive number.`);
+                return;
+              }
+              const count = store.countLowPromptSessions(threshold);
+              if (count === 0) {
+                window.alert(`No sessions to clean up (none have fewer than ${threshold} prompts, or matching ones are pinned / already archived).`);
+                return;
+              }
+              const ok = window.confirm(
+                `Archive ${count} session${count === 1 ? '' : 's'} with fewer than ${threshold} prompts?\n\nPinned and already-archived sessions will be skipped. Underlying transcript files are not deleted.`,
+              );
+              if (!ok) return;
+              const archived = store.cleanupLowPromptSessions(threshold);
+              if (archived > 0) {
+                store.addToast(`Archived ${archived} low-prompt session${archived === 1 ? '' : 's'}.`);
+              }
+            }}
+            data-tooltip="Archive sessions with few prompts"
+            style={{ fontSize: '10px', padding: '1px 6px' }}
+          >
+            🧹 Cleanup
+          </button>
           <button className="dir-panel-close" onClick={handleRefresh} data-tooltip="Refresh"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M1 1v5h5"/><path d="M3.5 10a5.5 5.5 0 1 0 1.1-5.5L1 8"/></svg></button>
           <button className="dir-panel-close" onClick={() => useTerminalStore.getState().toggleCopilotPanel()} data-tooltip="Close">&#10005;</button>
         </div>
