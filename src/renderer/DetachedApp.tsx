@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { isMac } from './utils/platform';
+import { prepareClipboardPaste } from './utils/paste';
 import '@xterm/xterm/css/xterm.css';
 
 /**
@@ -101,7 +102,7 @@ const DetachedApp: React.FC<DetachedAppProps> = ({ terminalId }) => {
 
       // Clipboard paste/copy handling
       const pasteToPty = (text: string) => {
-        const payload = term.modes.bracketedPasteMode ? `\x1b[200~${text}\x1b[201~` : text;
+        const payload = prepareClipboardPaste(text, !!term.modes.bracketedPasteMode);
         window.terminalAPI.writePty(terminalId, payload);
       };
       term.attachCustomKeyEventHandler((event) => {
@@ -192,7 +193,7 @@ const DetachedApp: React.FC<DetachedAppProps> = ({ terminalId }) => {
         if (text && !linkUrl && /^https?:\/\/[^\s]+$/.test(text.trim())) {
           text = unwrapSafelinks(text.trim());
         }
-        if (text) window.terminalAPI.writePty(terminalId, text);
+        if (text) pasteToPty(text);
       };
       // Block right-button mousedown/mouseup in capture so xterm.js can't
       // forward SGR mouse events to the pty. Otherwise a TUI with mouse
