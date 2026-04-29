@@ -1474,7 +1474,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId, floatTitleBar
             <button className="context-menu-item" onClick={() => {
               setPaneMenuPos(null);
               useTerminalStore.getState().openDiffReview(terminalId);
-            }}>📊 Diff review</button>
+            }}>🔀 Diff review</button>
             <button className="context-menu-item" onClick={() => {
               setPaneMenuPos(null);
               setRenameValue(title || '');
