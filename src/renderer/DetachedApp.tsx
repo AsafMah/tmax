@@ -170,6 +170,24 @@ const DetachedApp: React.FC<DetachedAppProps> = ({ terminalId }) => {
       });
       resizeObserver.observe(containerRef.current!);
 
+      const containerEl = containerRef.current!;
+      const getBrowserSelectionInsideTerminal = () => {
+        const selection = window.getSelection();
+        if (!selection || selection.isCollapsed) return '';
+        for (let i = 0; i < selection.rangeCount; i += 1) {
+          if (selection.getRangeAt(i).intersectsNode(containerEl)) {
+            return selection.toString();
+          }
+        }
+        return '';
+      };
+
+      const getCopyableSelection = () => (
+        term.hasSelection() ? term.getSelection() : getBrowserSelectionInsideTerminal()
+      );
+
+      const refocusTerminal = () => requestAnimationFrame(() => term.focus());
+
       // Block right-button mousedown/mouseup in capture so xterm.js can't
       // forward SGR mouse events to the pty. Otherwise a TUI with mouse
       // reporting on would see the right-click on top of our paste and the
@@ -188,7 +206,7 @@ const DetachedApp: React.FC<DetachedAppProps> = ({ terminalId }) => {
         if (e.button === 2) {
           e.stopPropagation();
           if (e.type === 'mousedown') {
-            pendingRightClickSelection = term.hasSelection() ? term.getSelection() : null;
+            pendingRightClickSelection = getCopyableSelection() || null;
           }
           if (e.type === 'mouseup') e.preventDefault();
         }
@@ -199,17 +217,20 @@ const DetachedApp: React.FC<DetachedAppProps> = ({ terminalId }) => {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        const sel = pendingRightClickSelection;
+        const sel = pendingRightClickSelection || getCopyableSelection();
         pendingRightClickSelection = null;
         if (sel) {
           window.terminalAPI.clipboardWrite(sel);
           term.clearSelection();
+          window.getSelection()?.removeAllRanges();
+          refocusTerminal();
           return;
         }
         if (window.terminalAPI.clipboardHasImage()) {
           window.terminalAPI.clipboardSaveImage().then((filePath: string) => {
             window.terminalAPI.writePty(terminalId, filePath);
           });
+          refocusTerminal();
           return;
         }
         const html = window.terminalAPI.clipboardReadHTML();
@@ -219,8 +240,8 @@ const DetachedApp: React.FC<DetachedAppProps> = ({ terminalId }) => {
           text = unwrapSafelinks(text.trim());
         }
         if (text) pasteToPty(text);
+        refocusTerminal();
       };
-      const containerEl = containerRef.current!;
       containerEl.addEventListener('contextmenu', handleContextMenu, true);
       containerEl.addEventListener('mousedown', handleRightMouseButton, true);
       containerEl.addEventListener('mouseup', handleRightMouseButton, true);

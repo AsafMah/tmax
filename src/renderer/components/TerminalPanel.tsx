@@ -1021,6 +1021,25 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId, floatTitleBar
     });
     resizeObserver.observe(containerRef.current);
 
+    const getBrowserSelectionInsideTerminal = () => {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed) return '';
+      const containerEl = containerRef.current;
+      if (!containerEl) return '';
+      for (let i = 0; i < selection.rangeCount; i += 1) {
+        if (selection.getRangeAt(i).intersectsNode(containerEl)) {
+          return selection.toString();
+        }
+      }
+      return '';
+    };
+
+    const getCopyableSelection = () => (
+      term.hasSelection() ? term.getSelection() : getBrowserSelectionInsideTerminal()
+    );
+
+    const refocusTerminal = () => requestAnimationFrame(() => term.focus());
+
     // Suppress right-button mousedown/mouseup in capture phase so xterm.js
     // doesn't forward SGR mouse events to the pty. Otherwise TUI apps with
     // mouse reporting enabled (e.g. Claude Code) receive the right-click on
@@ -1039,7 +1058,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId, floatTitleBar
       if (e.button === 2) {
         e.stopPropagation();
         if (e.type === 'mousedown') {
-          pendingRightClickSelection = term.hasSelection() ? term.getSelection() : null;
+          pendingRightClickSelection = getCopyableSelection() || null;
         }
         if (e.type === 'mouseup') e.preventDefault();
       }
@@ -1052,16 +1071,19 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId, floatTitleBar
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
-      const sel = pendingRightClickSelection;
+      const sel = pendingRightClickSelection || getCopyableSelection();
       pendingRightClickSelection = null;
       if (sel) {
         window.terminalAPI.clipboardWrite(sel);
         term.clearSelection();
+        window.getSelection()?.removeAllRanges();
+        refocusTerminal();
       } else {
         if (window.terminalAPI.clipboardHasImage()) {
           window.terminalAPI.clipboardSaveImage().then((filePath) => {
             window.terminalAPI.writePty(terminalId, filePath);
           });
+          refocusTerminal();
         } else {
           const html = window.terminalAPI.clipboardReadHTML();
           const linkUrl = extractLinkFromHtml(html);
@@ -1073,6 +1095,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId, floatTitleBar
             const payload = prepareClipboardPaste(text, cursorHideSignalsRef.current.bracketedPaste);
             window.terminalAPI.writePty(terminalId, payload);
           }
+          refocusTerminal();
         }
       }
     };
