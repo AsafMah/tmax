@@ -199,10 +199,15 @@ const DetachedApp: React.FC<DetachedAppProps> = ({ terminalId }) => {
       // forward SGR mouse events to the pty. Otherwise a TUI with mouse
       // reporting on would see the right-click on top of our paste and the
       // user would see a double paste (issue #72 variant).
+      // NOTE: Do NOT call preventDefault() on mousedown here. In Chromium/Electron,
+      // preventing the default action of a right-click mousedown suppresses the
+      // subsequent contextmenu event (especially on macOS where contextmenu is
+      // generated from mousedown). stopPropagation() alone is sufficient to keep
+      // xterm.js from seeing the event and forwarding SGR coordinates to the pty.
       const handleRightMouseButton = (e: MouseEvent) => {
         if (e.button === 2) {
-          e.preventDefault();
           e.stopPropagation();
+          if (e.type === 'mouseup') e.preventDefault();
         }
       };
       const containerEl = containerRef.current!;
