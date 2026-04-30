@@ -1030,9 +1030,17 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId, floatTitleBar
     // subsequent contextmenu event (especially on macOS where contextmenu is
     // generated from mousedown). stopPropagation() alone is sufficient to keep
     // xterm.js from seeing the event and forwarding SGR coordinates to the pty.
+    // Capture the selection text at mousedown time (capture phase, before any
+    // focus-change side-effects can cause xterm to clear it). The contextmenu
+    // handler then reads this snapshot so "copy if selection" wins even when
+    // Electron moves focus between mousedown and contextmenu.
+    let pendingRightClickSelection: string | null = null;
     const handleRightMouseButton = (e: MouseEvent) => {
       if (e.button === 2) {
         e.stopPropagation();
+        if (e.type === 'mousedown') {
+          pendingRightClickSelection = term.hasSelection() ? term.getSelection() : null;
+        }
         if (e.type === 'mouseup') e.preventDefault();
       }
     };
@@ -1044,8 +1052,10 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId, floatTitleBar
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
-      if (term.hasSelection()) {
-        window.terminalAPI.clipboardWrite(term.getSelection());
+      const sel = pendingRightClickSelection;
+      pendingRightClickSelection = null;
+      if (sel) {
+        window.terminalAPI.clipboardWrite(sel);
         term.clearSelection();
       } else {
         if (window.terminalAPI.clipboardHasImage()) {

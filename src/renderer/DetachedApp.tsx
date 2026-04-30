@@ -170,14 +170,39 @@ const DetachedApp: React.FC<DetachedAppProps> = ({ terminalId }) => {
       });
       resizeObserver.observe(containerRef.current!);
 
+      // Block right-button mousedown/mouseup in capture so xterm.js can't
+      // forward SGR mouse events to the pty. Otherwise a TUI with mouse
+      // reporting on would see the right-click on top of our paste and the
+      // user would see a double paste (issue #72 variant).
+      // NOTE: Do NOT call preventDefault() on mousedown here. In Chromium/Electron,
+      // preventing the default action of a right-click mousedown suppresses the
+      // subsequent contextmenu event (especially on macOS where contextmenu is
+      // generated from mousedown). stopPropagation() alone is sufficient to keep
+      // xterm.js from seeing the event and forwarding SGR coordinates to the pty.
+      //
+      // Capture the selection text at mousedown time (capture phase) so it is
+      // available in handleContextMenu even if focus changes between mousedown
+      // and contextmenu cause xterm to clear it.
+      let pendingRightClickSelection: string | null = null;
+      const handleRightMouseButton = (e: MouseEvent) => {
+        if (e.button === 2) {
+          e.stopPropagation();
+          if (e.type === 'mousedown') {
+            pendingRightClickSelection = term.hasSelection() ? term.getSelection() : null;
+          }
+          if (e.type === 'mouseup') e.preventDefault();
+        }
+      };
       // Right-click: copy if selection, paste otherwise. Mirrors
       // TerminalPanel so detached windows match main window behaviour.
       const handleContextMenu = (e: MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        if (term.hasSelection()) {
-          window.terminalAPI.clipboardWrite(term.getSelection());
+        const sel = pendingRightClickSelection;
+        pendingRightClickSelection = null;
+        if (sel) {
+          window.terminalAPI.clipboardWrite(sel);
           term.clearSelection();
           return;
         }
@@ -194,21 +219,6 @@ const DetachedApp: React.FC<DetachedAppProps> = ({ terminalId }) => {
           text = unwrapSafelinks(text.trim());
         }
         if (text) pasteToPty(text);
-      };
-      // Block right-button mousedown/mouseup in capture so xterm.js can't
-      // forward SGR mouse events to the pty. Otherwise a TUI with mouse
-      // reporting on would see the right-click on top of our paste and the
-      // user would see a double paste (issue #72 variant).
-      // NOTE: Do NOT call preventDefault() on mousedown here. In Chromium/Electron,
-      // preventing the default action of a right-click mousedown suppresses the
-      // subsequent contextmenu event (especially on macOS where contextmenu is
-      // generated from mousedown). stopPropagation() alone is sufficient to keep
-      // xterm.js from seeing the event and forwarding SGR coordinates to the pty.
-      const handleRightMouseButton = (e: MouseEvent) => {
-        if (e.button === 2) {
-          e.stopPropagation();
-          if (e.type === 'mouseup') e.preventDefault();
-        }
       };
       const containerEl = containerRef.current!;
       containerEl.addEventListener('contextmenu', handleContextMenu, true);
