@@ -1021,14 +1021,46 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId, floatTitleBar
     });
     resizeObserver.observe(containerRef.current);
 
+    const getBrowserSelectionInsideTerminal = () => {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed) return '';
+      const containerEl = containerRef.current;
+      if (!containerEl) return '';
+      for (let i = 0; i < selection.rangeCount; i += 1) {
+        if (selection.getRangeAt(i).intersectsNode(containerEl)) {
+          return selection.toString();
+        }
+      }
+      return '';
+    };
+
+    const getCopyableSelection = () => (
+      term.hasSelection() ? term.getSelection() : getBrowserSelectionInsideTerminal()
+    );
+
+    const refocusTerminal = () => requestAnimationFrame(() => term.focus());
+
     // Suppress right-button mousedown/mouseup in capture phase so xterm.js
     // doesn't forward SGR mouse events to the pty. Otherwise TUI apps with
     // mouse reporting enabled (e.g. Claude Code) receive the right-click on
     // top of our own paste, causing a visible double-paste.
+    // NOTE: Do NOT call preventDefault() on mousedown here. In Chromium/Electron,
+    // preventing the default action of a right-click mousedown suppresses the
+    // subsequent contextmenu event (especially on macOS where contextmenu is
+    // generated from mousedown). stopPropagation() alone is sufficient to keep
+    // xterm.js from seeing the event and forwarding SGR coordinates to the pty.
+    // Capture the selection text at mousedown time (capture phase, before any
+    // focus-change side-effects can cause xterm to clear it). The contextmenu
+    // handler then reads this snapshot so "copy if selection" wins even when
+    // Electron moves focus between mousedown and contextmenu.
+    let pendingRightClickSelection: string | null = null;
     const handleRightMouseButton = (e: MouseEvent) => {
       if (e.button === 2) {
-        e.preventDefault();
         e.stopPropagation();
+        if (e.type === 'mousedown') {
+          pendingRightClickSelection = getCopyableSelection() || null;
+        }
+        if (e.type === 'mouseup') e.preventDefault();
       }
     };
     containerRef.current.addEventListener('mousedown', handleRightMouseButton, true);
@@ -1039,14 +1071,19 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId, floatTitleBar
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
-      if (term.hasSelection()) {
-        window.terminalAPI.clipboardWrite(term.getSelection());
+      const sel = pendingRightClickSelection || getCopyableSelection();
+      pendingRightClickSelection = null;
+      if (sel) {
+        window.terminalAPI.clipboardWrite(sel);
         term.clearSelection();
+        window.getSelection()?.removeAllRanges();
+        refocusTerminal();
       } else {
         if (window.terminalAPI.clipboardHasImage()) {
           window.terminalAPI.clipboardSaveImage().then((filePath) => {
             window.terminalAPI.writePty(terminalId, filePath);
           });
+          refocusTerminal();
         } else {
           const html = window.terminalAPI.clipboardReadHTML();
           const linkUrl = extractLinkFromHtml(html);
@@ -1058,6 +1095,7 @@ const TerminalPanel: React.FC<TerminalPanelProps> = ({ terminalId, floatTitleBar
             const payload = prepareClipboardPaste(text, cursorHideSignalsRef.current.bracketedPaste);
             window.terminalAPI.writePty(terminalId, payload);
           }
+          refocusTerminal();
         }
       }
     };
